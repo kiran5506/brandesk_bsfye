@@ -6,15 +6,15 @@ exports.create = async (req, res) => {
     console.log('files-->', req.files);
 
     const files = req.files;
-    const { bannerDesktop, bannerMobile, linkTitle, linkUrl } = req.body;
+    const { bannerDesktop, linkTitle, linkUrl, description } = req.body;
     try{
         let banner_desktop = "";
-        let banner_mobile = "";
+       // let banner_mobile = "";
         if(files){
             banner_desktop = files.bannerDesktop ? files.bannerDesktop[0].filename : "";
-            banner_mobile = files.bannerMobile ? files.bannerMobile[0].filename : "";
+            //banner_mobile = files.bannerMobile ? files.bannerMobile[0].filename : "";
         }
-        const newSlider = new Slider({bannerDesktop: banner_desktop, bannerMobile:banner_mobile, linkTitle, linkUrl});
+        const newSlider = new Slider({bannerDesktop: banner_desktop, linkTitle, linkUrl, description});
         const result = await newSlider.save();
         res.status(201).json({status: true, message: 'Slider created Successfully.'})
     }catch(err){
@@ -25,10 +25,10 @@ exports.create = async (req, res) => {
 exports.edit = async (req, res) => {    
     const files = req.files;
     const { id } = req.params;
-    const { linkTitle, linkUrl } = req.body;
+    const { linkTitle, linkUrl, description } = req.body;
     try{
         let banner_desktop = "";
-        let banner_mobile = "";
+       // let banner_mobile = "";
 
         const slider = await Slider.findOne({_id: id});
         if(!slider){
@@ -36,12 +36,12 @@ exports.edit = async (req, res) => {
         }
         if(files){
             banner_desktop = files.bannerDesktop ? files.bannerDesktop[0].filename : slider.bannerDesktop;
-            banner_mobile = files.bannerMobile ? files.bannerMobile[0].filename : slider.bannerMobile;
+            //banner_mobile = files.bannerMobile ? files.bannerMobile[0].filename : slider.bannerMobile;
         }else{
             banner_desktop = slider.bannerDesktop;
-            banner_mobile = slider.bannerMobile;
+           // banner_mobile = slider.bannerMobile;
         }
-        const result = await Slider.findByIdAndUpdate(id, {bannerDesktop: banner_desktop, bannerMobile:banner_mobile, linkTitle, linkUrl}, { new: true, runValidators: true });
+        const result = await Slider.findByIdAndUpdate(id, {bannerDesktop: banner_desktop, linkTitle, linkUrl, description}, { new: true, runValidators: true });
         console.log(result);
         
         res.status(201).json({status: true, message: 'Slider updated Successfully.'})
@@ -52,7 +52,6 @@ exports.edit = async (req, res) => {
 
 exports.delete = async (req, res) => {
     const { id } = req.params;
-    const { linkTitle, linkUrl } = req.body;
     try{
         const slider = await Slider.findOne({_id: id});
         if(!slider){
@@ -77,8 +76,9 @@ exports.list = async (req, res) => {
                 _id: slider._id,
                 linkTitle: slider.linkTitle,
                 linkUrl: slider.linkUrl,
+                description: slider.description,
                 bannerDesktopPath: baseUrl + slider.bannerDesktop,
-                bannerMobilePath: baseUrl + slider.bannerMobile
+                //bannerMobilePath: baseUrl + slider.bannerMobile
             };
         });
 
@@ -99,9 +99,9 @@ exports.findById = async (req, res) => {
             if(slider.bannerDesktop){
                 slider.bannerDesktop  = baseUrl + slider.bannerDesktop;
             }
-            if(slider.bannerMobile){
-                slider.bannerMobile  = baseUrl + slider.bannerMobile;
-            }
+            // if(slider.bannerMobile){
+            //     slider.bannerMobile  = baseUrl + slider.bannerMobile;
+            // }
         } 
         res.status(201).json({status: true, message: 'slider data', data: slider})
     }catch(err){
