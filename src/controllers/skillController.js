@@ -62,7 +62,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const skills = await Skill.find();
+        const skills = await Skill.find().select('-createdAt -updatedAt -isActive -__v');
         if (!skills || skills.length === 0) {
             return res.status(404).json({ status: false, message: "No skills found" });
         }

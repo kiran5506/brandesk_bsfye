@@ -6,7 +6,7 @@ exports.create = async (req, res) => {
     console.log('files-->', req.files);
 
     const files = req.files;
-    const { eventName, serviceCategory, skills, description } = req.body;
+    const { eventName, serviceCategory, skills } = req.body;
 
     try {
         let image = "";
@@ -20,8 +20,7 @@ exports.create = async (req, res) => {
             eventName,
             serviceCategory,
             image,
-            skills: skillsArray,
-            description
+            skills: skillsArray
         });
 
         const result = await newEvent.save();
@@ -34,7 +33,7 @@ exports.create = async (req, res) => {
 exports.edit = async (req, res) => {
     const files = req.files;
     const { id } = req.params;
-    const { eventName, serviceCategory, skills, description } = req.body;
+    const { eventName, serviceCategory, skills } = req.body;
 
     try {
         const event = await Event.findOne({ _id: id });
@@ -57,8 +56,7 @@ exports.edit = async (req, res) => {
                 eventName,
                 serviceCategory,
                 image,
-                skills: skillsArray,
-                description
+                skills: skillsArray
             },
             { new: true, runValidators: true }
         );
@@ -88,7 +86,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const events = await Event.find();
+        const events = await Event.find().select('-createdAt -updatedAt -isActive -__v -skills');
         if (!events || events.length === 0) {
             return res.status(404).json({ status: false, message: "No events found" });
         }
@@ -99,7 +97,6 @@ exports.list = async (req, res) => {
                 eventName: event.eventName,
                 serviceCategory: event.serviceCategory,
                 skills: event.skills,
-                description: event.description,
                 imagePath: baseUrl + event.image,
                 isActive: event.isActive,
                 createdAt: event.createdAt,
@@ -147,7 +144,6 @@ exports.findByCategory = async (req, res) => {
                 eventName: event.eventName,
                 serviceCategory: event.serviceCategory,
                 skills: event.skills,
-                description: event.description,
                 imagePath: baseUrl + event.image,
                 isActive: event.isActive,
                 createdAt: event.createdAt,

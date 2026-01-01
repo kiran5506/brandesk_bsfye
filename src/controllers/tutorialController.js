@@ -82,7 +82,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const tutorials = await Tutorial.find();
+        const tutorials = await Tutorial.find().select('-createdAt -updatedAt -isActive -__v');
         if (!tutorials || tutorials.length === 0) {
             return res.status(404).json({ status: false, message: "No tutorials found" });
         }

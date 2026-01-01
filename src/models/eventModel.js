@@ -5,7 +5,6 @@ const eventSchema = new mongoose.Schema({
   serviceCategory: { type: String, required: true },
   image: { type: String, required: true },
   skills: [{ type: String }],
-  description: { type: String, required: false },
   isActive: { type: Boolean, default: true }
 }, {
   timestamps: true

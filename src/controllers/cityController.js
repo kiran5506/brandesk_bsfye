@@ -62,7 +62,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const cities = await City.find();
+        const cities = await City.find().select('-createdAt -updatedAt -isActive -__v');
         if (!cities || cities.length === 0) {
             return res.status(404).json({ status: false, message: "No cities found" });
         }

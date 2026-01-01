@@ -62,7 +62,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const languages = await Language.find();
+        const languages = await Language.find().select('-createdAt -updatedAt -isActive -__v');
         if (!languages || languages.length === 0) {
             return res.status(404).json({ status: false, message: "No languages found" });
         }
