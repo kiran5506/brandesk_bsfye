@@ -1,0 +1,306 @@
+const CustomerInquiry = require('../models/customerInquiryModel');
+
+/**
+ * Create a new customer inquiry
+ * POST /api/inquiry/create
+ */
+exports.create = async (req, res) => {
+  try {
+    const { customer_name, customer_mobile, city, event_date } = req.body;
+
+    // Validation
+    if (!customer_name || !customer_mobile || !event_date) {
+      return res.status(400).json({
+        status: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Validate phone number (10 digits)
+    if (!/^[0-9]{10}$/.test(customer_mobile)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Customer mobile must be a valid 10-digit number'
+      });
+    }
+
+    // Check for existing inquiry with same mobile number and event date
+    const existingInquiry = await CustomerInquiry.findOne({
+      customer_mobile,
+      event_date: new Date(event_date),
+      isActive: true
+    });
+
+    if (existingInquiry) {
+      return res.status(400).json({
+        status: false,
+        message: 'An inquiry with this mobile number and event date already exists'
+      });
+    }
+
+    const newInquiry = new CustomerInquiry({
+      customer_name,
+      customer_mobile,
+      city,
+      event_date: new Date(event_date)
+    });
+
+    const result = await newInquiry.save();
+
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    result.OTP = otp;
+    await result.save();
+
+    res.status(201).json({
+      status: true,
+      message: 'Customer inquiry created successfully',
+      data: result
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
+};
+
+/**
+ * Get all customer inquiries
+ * GET /api/inquiry/list
+ */
+exports.list = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, is_verified } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Build filter
+    const filter = { isActive: true };
+    if (is_verified !== undefined) filter.is_verified = is_verified === 'true';
+
+    const inquiries = await CustomerInquiry.find(filter)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    const total = await CustomerInquiry.countDocuments(filter);
+
+    if (!inquiries || inquiries.length === 0) {
+      return res.status(404).json({
+        status: false,
+        message: 'No customer inquiries found'
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: 'Customer inquiries retrieved successfully',
+      data: inquiries,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
+};
+
+/**
+ * Get customer inquiry by ID
+ * GET /api/inquiry/findById/:id
+ */
+exports.findById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const inquiry = await CustomerInquiry.findOne({
+      _id: id,
+      isActive: true
+    });
+
+    if (!inquiry) {
+      return res.status(404).json({
+        status: false,
+        message: 'Customer inquiry not found'
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: 'Customer inquiry retrieved successfully',
+      data: inquiry
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
+};
+
+/**
+ * Update customer inquiry OTP and verification
+ * PUT /api/inquiry/updateStatus/:id
+ */
+exports.updateStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { OTP, is_verified } = req.body;
+
+    const inquiry = await CustomerInquiry.findOne({
+      _id: id,
+      isActive: true
+    });
+
+    if (!inquiry) {
+      return res.status(404).json({
+        status: false,
+        message: 'Customer inquiry not found'
+      });
+    }
+
+    // Update the inquiry
+    const updateData = {};
+    if (OTP !== undefined) updateData.OTP = OTP;
+    if (is_verified !== undefined) updateData.is_verified = is_verified;
+
+    const updatedInquiry = await CustomerInquiry.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      status: true,
+      message: 'Customer inquiry updated successfully',
+      data: updatedInquiry
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
+};
+
+/**
+ * Update entire customer inquiry
+ * PUT /api/inquiry/update/:id
+ */
+exports.update = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customer_name, customer_mobile, city, event_date, OTP, is_verified } = req.body;
+
+    const inquiry = await CustomerInquiry.findOne({
+      _id: id,
+      isActive: true
+    });
+
+    if (!inquiry) {
+      return res.status(404).json({
+        status: false,
+        message: 'Customer inquiry not found'
+      });
+    }
+
+    // Validate phone number if provided
+    if (customer_mobile && !/^[0-9]{10}$/.test(customer_mobile)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Customer mobile must be a valid 10-digit number'
+      });
+    }
+
+    const updateData = {};
+    if (customer_name) updateData.customer_name = customer_name;
+    if (customer_mobile) updateData.customer_mobile = customer_mobile;
+    if (city) updateData.city = city;
+    if (event_date) updateData.event_date = new Date(event_date);
+    if (OTP !== undefined) updateData.OTP = OTP;
+    if (is_verified !== undefined) updateData.is_verified = is_verified;
+
+    const updatedInquiry = await CustomerInquiry.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      status: true,
+      message: 'Customer inquiry updated successfully',
+      data: updatedInquiry
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
+};
+
+/**
+ * Delete/Deactivate customer inquiry
+ * DELETE /api/inquiry/delete/:id
+ */
+exports.delete = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const inquiry = await CustomerInquiry.findOne({
+      _id: id,
+      isActive: true
+    });
+
+    if (!inquiry) {
+      return res.status(404).json({
+        status: false,
+        message: 'Customer inquiry not found'
+      });
+    }
+
+    // Soft delete - deactivate instead of hard delete
+    await CustomerInquiry.findByIdAndUpdate(
+      id,
+      { isActive: false },
+      { new: true }
+    );
+
+    res.status(200).json({
+      status: true,
+      message: 'Customer inquiry deleted successfully'
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
+};
+
+
+exports.verifyOtp = async (req, res) => {
+    const { inquiry_id, otp_code } = req.body;
+    try {
+        const inquiry = await CustomerInquiry.findById(inquiry_id);
+        if (!inquiry) {
+            return res.status(404).json({ status: false, message: "Inquiry not found" });
+        }
+        if (inquiry.OTP !== otp_code) {
+            return res.status(400).json({ status: false, message: "Invalid OTP" });
+        }
+        inquiry.is_verified = true;
+        inquiry.OTP = undefined;
+        await inquiry.save();
+
+        res.status(200).json({ status: true, message: "OTP verified successfully", data: inquiry });
+    } catch (err) {
+        res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};
+

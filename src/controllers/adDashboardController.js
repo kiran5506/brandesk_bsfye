@@ -3,7 +3,7 @@ const baseUrl = process.env.BASE_URL;
 
 exports.siteSettings = async (req, res) => {
     const id = req.params.id;
-    const { page_title, mobile_number, email, whatsapp_number, address, why_bsfye, youtube_url, linkdin_url, google_analytics, facebook_url, twitter_url, instagram_url } = req.body;
+    const { page_title, mobile_number, email, whatsapp_number, address, why_bsfye, youtube_url, linkedin_url, google_analytics, facebook_url, twitter_url, instagram_url, top_header_title } = req.body;
     const files = req.files;
 
     console.log("Files received:", req.files);
@@ -38,7 +38,8 @@ exports.siteSettings = async (req, res) => {
             ...(twitter_url && { twitter_url }),
             ...(instagram_url && { instagram_url }),
             ...(youtube_url && { youtube_url }),
-            ...(linkdin_url && { linkdin_url }),
+            ...(linkedin_url && { linkedin_url }),
+            ...(top_header_title && { top_header_title }),
         };
 
         // Remove undefined fields (prevents overwrite)

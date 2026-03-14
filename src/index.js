@@ -23,11 +23,23 @@ const leadPackageRouter = require('./routes/leadPackageRouter');
 const skillRouter = require('./routes/skillRouter');
 const tutorialRouter = require('./routes/tutorialRouter');
 const languageRouter = require('./routes/languageRouter');
+const testimonialRouter = require('./routes/testimonialRouter');
 
 const vendorAuthRouter = require('./routes/vendorAuthRouter');
 const vendorRouter = require('./routes/vendorRouter');
+const businessProfileRouter = require('./routes/businessProfileRoutes');
+
+const userRouter = require('./routes/userRouter');
+const employeeRouter = require('./routes/employeeRouter');
 
 const adminAuthRouter = require('./routes/adminAuthRouter');
+const customerInquiryRouter = require('./routes/customerInquiryRouter');
+const customerRouter = require('./routes/customerRouter');
+const customerAuthRouter = require('./routes/customerAuthRouter');
+const contactSupportRouter = require('./routes/contactSupportRouter');
+const feedbackRouter = require('./routes/feedbackRouter');
+const reviewRouter = require('./routes/reviewRouter');
+const freelancerRouter = require('./routes/freelancerRouter');
 
 const app = express();
 const PORT = process.env.PORT || 5003;
@@ -63,13 +75,36 @@ app.use("/api/leadpackage", leadPackageRouter);
 app.use("/api/skill", skillRouter);
 app.use("/api/tutorial", tutorialRouter);
 app.use("/api/language", languageRouter);
+app.use("/api/testimonial", testimonialRouter);
 
 /** Vendor Module */
 app.use("/api/vendorauth", vendorAuthRouter);
 app.use("/api/vendor", vendorRouter);
+app.use("/api/business-profile", businessProfileRouter);
+
+/** User Module */
+app.use("/api/user", userRouter);
+app.use("/api/employee", employeeRouter);
 
 /** Admin Module */
 app.use("/api/admin", adminAuthRouter);
+
+/** Customer Inquiry Module */
+app.use("/api/inquiry", customerInquiryRouter);
+
+/** Customer Module */
+app.use("/api/customerauth", customerAuthRouter);
+app.use("/api/customer", customerRouter);
+
+/** Contact Support Module */
+app.use("/api/contact-support", contactSupportRouter);
+
+/** Feedback Module */
+app.use("/api/feedback", feedbackRouter);
+
+/** Review Module */
+app.use("/api/review", reviewRouter);
+app.use("/api/freelancers", freelancerRouter);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)

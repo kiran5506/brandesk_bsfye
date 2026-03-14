@@ -1,6 +1,7 @@
 const express = require('express');
 const vendorController = require('../controllers/vendorController');
 const authenticateJWT = require('../middlewares/authToken');
+const upload = require('../middlewares/multer');
 
 const router = express.Router();
 
@@ -69,7 +70,7 @@ router.get('/view/:id', authenticateJWT, vendorController.view);
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -77,12 +78,13 @@ router.get('/view/:id', authenticateJWT, vendorController.view);
  *                 type: string
  *               email:
  *                 type: string
- *               phone:
- *                 type: string
- *               businessName:
+ *               mobile_number:
  *                 type: string
  *               address:
  *                 type: string
+ *               profile_image:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       200:
  *         description: Vendor updated successfully
@@ -95,7 +97,53 @@ router.get('/view/:id', authenticateJWT, vendorController.view);
  *       500:
  *         description: Server error
  */
-router.put('/edit/:id', authenticateJWT, vendorController.edit);
+router.put('/edit/:id', authenticateJWT, upload.fields([{ name: 'profile_image', maxCount: 1 }]), vendorController.edit);
+
+/**
+ * @swagger
+ * /api/vendor/update-password/{id}:
+ *   put:
+ *     summary: Update vendor password
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Vendor ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               oldPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *               confirmPassword:
+ *                 type: string
+ *             required:
+ *               - oldPassword
+ *               - newPassword
+ *               - confirmPassword
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *       400:
+ *         description: Invalid input or password mismatch
+ *       401:
+ *         description: Old password is incorrect
+ *       404:
+ *         description: Vendor not found
+ *       500:
+ *         description: Server error
+ */
+router.put('/update-password/:id', authenticateJWT, vendorController.updatePassword);
 
 /**
  * @swagger

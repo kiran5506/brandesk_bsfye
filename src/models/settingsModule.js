@@ -15,7 +15,8 @@ const settingsSchema = new  mongoose.Schema({
     twitter_url: { type: String, required: false },
     instagram_url: { type: String, required: false },
     youtube_url: { type: String, required: false },
-    linkdin_url: { type: String, required: false },
+    linkedin_url: { type: String, required: false },
+    top_header_title: { type: String, required: false },
 },{
     timestamps: true
 })

@@ -6,7 +6,7 @@ exports.create = async (req, res) => {
     console.log('files-->', req.files);
 
     const files = req.files;
-    const { serviceName, serviceCategory, serviceType, portfolioType, skills, description } = req.body;
+    const { serviceName, serviceType, portfolioType, skills, description } = req.body;
     
     try {
         let image = "";
@@ -16,7 +16,6 @@ exports.create = async (req, res) => {
 
         const newService = new Service({
             serviceName,
-            serviceCategory,
             serviceType,
             portfolioType,
             image,
@@ -34,7 +33,7 @@ exports.create = async (req, res) => {
 exports.edit = async (req, res) => {
     const files = req.files;
     const { id } = req.params;
-    const { serviceName, serviceCategory, serviceType, portfolioType, skills, description } = req.body;
+    const { serviceName, serviceType, portfolioType, skills, description } = req.body;
     
     try {
         const service = await Service.findOne({ _id: id });
@@ -53,7 +52,6 @@ exports.edit = async (req, res) => {
             id,
             {
                 serviceName,
-                serviceCategory,
                 serviceType,
                 portfolioType,
                 image,
@@ -97,7 +95,6 @@ exports.list = async (req, res) => {
             return {
                 _id: service._id,
                 serviceName: service.serviceName,
-                serviceCategory: service.serviceCategory,
                 serviceType: service.serviceType,
                 portfolioType: service.portfolioType,
                 skills: service.skills,
@@ -135,10 +132,10 @@ exports.findById = async (req, res) => {
 };
 
 exports.findByCategory = async (req, res) => {
-    const { category } = req.params;
+    const { name } = req.params;
     
     try {
-        const services = await Service.find({ serviceCategory: category });
+        const services = await Service.find({ serviceName: name });
         if (!services || services.length === 0) {
             return res.status(404).json({ status: false, message: "No services found for this category" });
         }
@@ -147,7 +144,6 @@ exports.findByCategory = async (req, res) => {
             return {
                 _id: service._id,
                 serviceName: service.serviceName,
-                serviceCategory: service.serviceCategory,
                 serviceType: service.serviceType,
                 portfolioType: service.portfolioType,
                 skills: service.skills,
