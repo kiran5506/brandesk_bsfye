@@ -3,12 +3,12 @@ const mongoose = require('mongoose');
 const reviewSchema = new mongoose.Schema({
     vendor_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Vendor',
+        ref: 'vendor',
         required: true
     },
     customer_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Customer',
+        ref: 'customer',
         required: true
     },
     service_id: {

@@ -3,11 +3,12 @@ const mongoose = require('mongoose');
 const businessProfileSchema = new mongoose.Schema({
     vendor_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Vendor',
+        ref: 'vendor',
         required: true
     },
-    serviceName: {
-        type: String,
+    service_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Service',
         required: true
     },
     businessName: {
@@ -48,6 +49,18 @@ const businessProfileSchema = new mongoose.Schema({
         aadharBack: String,
         registrationCopy: String,
         gst: String
+    },
+    about_us: {
+        type: String,
+        default: ''
+    },
+    communication_address: {
+        type: String,
+        default: ''
+    },
+    cover_images: {
+        type: [String],
+        default: []
     },
     isActive: {
         type: Boolean,

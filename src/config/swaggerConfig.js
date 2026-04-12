@@ -65,7 +65,12 @@ const options = {
       }
     }
   },
-  apis: ['./src/routes/*.js']
+  apis: [
+    './src/routes/*.js',
+    './src/routes/paymentRouter.js',
+    './src/routes/statsRouter.js',
+    './src/routes/wishlistRouter.js'
+  ]
 };
 
 const specs = swaggerJsdoc(options);

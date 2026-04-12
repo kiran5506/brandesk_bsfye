@@ -12,6 +12,9 @@ const vendorSchema = new mongoose.Schema({
     is_profile_completed: { type: Boolean, default: false },
     is_profile_verified: { type: Boolean, default: false },
     profile_status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+    approved_date: { type: Date, required: false },
+    rejected_date: { type: Date, required: false },
+    credits: { type: Number, default: 0, required: false },
     acceptTerms: { type: String,  required: false },
     isActive: { type: Boolean, default: true }
 }, {

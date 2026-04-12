@@ -9,7 +9,8 @@ router.post('/create', upload.fields([
     { name: 'aadharFront', maxCount: 1 },
     { name: 'aadharBack', maxCount: 1 },
     { name: 'registrationCopy', maxCount: 1 },
-    { name: 'gst', maxCount: 1 }
+    { name: 'gst', maxCount: 1 },
+    { name: 'coverImages', maxCount: 3 }
 ]), businessProfileController.create);
 
 // Get all business profiles
@@ -17,6 +18,9 @@ router.get('/list', businessProfileController.list);
 
 // Get business profile by ID
 router.get('/findById/:id', businessProfileController.findById);
+
+// Get business profile details with vendor, portfolio, packages, and events
+router.get('/details/:id', businessProfileController.detailsById);
 
 // Get business profiles by vendor ID
 router.get('/findByVendorId/:vendor_id', businessProfileController.findByVendorId);
@@ -27,10 +31,14 @@ router.put('/edit/:id', upload.fields([
     { name: 'aadharFront', maxCount: 1 },
     { name: 'aadharBack', maxCount: 1 },
     { name: 'registrationCopy', maxCount: 1 },
-    { name: 'gst', maxCount: 1 }
+    { name: 'gst', maxCount: 1 },
+    { name: 'coverImages', maxCount: 3 }
 ]), businessProfileController.edit);
 
 // Delete business profile
 router.delete('/delete/:id', businessProfileController.delete);
+
+// Delete cover image
+router.patch('/delete-cover-image/:id', businessProfileController.deleteCoverImage);
 
 module.exports = router;

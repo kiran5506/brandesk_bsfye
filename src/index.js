@@ -28,6 +28,8 @@ const testimonialRouter = require('./routes/testimonialRouter');
 const vendorAuthRouter = require('./routes/vendorAuthRouter');
 const vendorRouter = require('./routes/vendorRouter');
 const businessProfileRouter = require('./routes/businessProfileRoutes');
+const businessPortfolioRouter = require('./routes/businessPortfolioRoutes');
+const businessPackageRouter = require('./routes/businessPackageRoutes');
 
 const userRouter = require('./routes/userRouter');
 const employeeRouter = require('./routes/employeeRouter');
@@ -40,6 +42,11 @@ const contactSupportRouter = require('./routes/contactSupportRouter');
 const feedbackRouter = require('./routes/feedbackRouter');
 const reviewRouter = require('./routes/reviewRouter');
 const freelancerRouter = require('./routes/freelancerRouter');
+const suggestionRouter = require('./routes/suggestionRouter');
+const videoRouter = require('./routes/videoRouter');
+const paymentRouter = require('./routes/paymentRouter');
+const statsRouter = require('./routes/statsRouter');
+const wishlistRouter = require('./routes/wishlistRouter');
 
 const app = express();
 const PORT = process.env.PORT || 5003;
@@ -81,6 +88,8 @@ app.use("/api/testimonial", testimonialRouter);
 app.use("/api/vendorauth", vendorAuthRouter);
 app.use("/api/vendor", vendorRouter);
 app.use("/api/business-profile", businessProfileRouter);
+app.use("/api/business-portfolio", businessPortfolioRouter);
+app.use("/api/business-packages", businessPackageRouter);
 
 /** User Module */
 app.use("/api/user", userRouter);
@@ -105,6 +114,11 @@ app.use("/api/feedback", feedbackRouter);
 /** Review Module */
 app.use("/api/review", reviewRouter);
 app.use("/api/freelancers", freelancerRouter);
+app.use("/api/suggestions", suggestionRouter);
+app.use("/api/video", videoRouter);
+app.use("/api/payment", paymentRouter);
+app.use("/api/stats", statsRouter);
+app.use("/api/wishlist", wishlistRouter);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)

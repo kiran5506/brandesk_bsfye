@@ -76,7 +76,13 @@ exports.list = async (req, res) => {
     // Build filter
     const filter = { isActive: true };
     if (status !== undefined) filter.status = parseInt(status);
-    if (type !== undefined) filter.type = type;
+    if (type !== undefined) {
+      if (type === 'customer' || type === 'user') {
+        filter.type = { $in: ['customer', 'user'] };
+      } else {
+        filter.type = type;
+      }
+    }
 
     const feedbacks = await Feedback.find(filter)
       .populate('vendor_id', 'name mobile_number email')

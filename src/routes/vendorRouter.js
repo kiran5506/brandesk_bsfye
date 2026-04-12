@@ -27,6 +27,75 @@ router.get('/list', authenticateJWT, vendorController.list);
 
 /**
  * @swagger
+ * /api/vendor/list-with-status:
+ *   get:
+ *     summary: Get all vendors with status and business profiles
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: profile_status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [pending, accepted, rejected]
+ *         description: Filter vendors by profile status
+ *     responses:
+ *       200:
+ *         description: List of vendors with status and business profiles
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: No vendors found
+ *       500:
+ *         description: Server error
+ */
+router.get('/list-with-status',  vendorController.listWithStatus);
+
+/**
+ * @swagger
+ * /api/vendor/approve-reject/{id}:
+ *   patch:
+ *     summary: Approve or reject a vendor
+ *     tags: [Vendors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Vendor ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               profile_status:
+ *                 type: string
+ *                 enum: [accepted, rejected]
+ *             required:
+ *               - profile_status
+ *     responses:
+ *       200:
+ *         description: Vendor status updated successfully
+ *       400:
+ *         description: Invalid status value
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Vendor not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/approve-reject/:id', authenticateJWT, vendorController.approveOrReject);
+
+/**
+ * @swagger
  * /api/vendor/view/{id}:
  *   get:
  *     summary: Get vendor details by ID

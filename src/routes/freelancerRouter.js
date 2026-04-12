@@ -12,5 +12,6 @@ const uploadFields = upload.fields([
 router.post('/', uploadFields, freelancerController.create);
 router.post('/create', uploadFields, freelancerController.create);
 router.get('/list', freelancerController.list);
+router.get('/:id', freelancerController.findById);
 
 module.exports = router;

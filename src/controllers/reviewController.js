@@ -11,10 +11,17 @@ exports.create = async (req, res) => {
     
     try {
         // Validation
-        if (!vendor_id || !customer_id || !review || !rating) {
+        if (!customer_id) {
+            return res.status(401).json({
+                status: false,
+                message: 'Please login to submit a review.'
+            });
+        }
+
+        if (!vendor_id || !review || !rating) {
             return res.status(400).json({
                 status: false,
-                message: 'vendor_id, customer_id, review, and rating are required'
+                message: 'vendor_id, review, and rating are required'
             });
         }
 
@@ -41,7 +48,7 @@ exports.create = async (req, res) => {
 
         res.status(201).json({
             status: true,
-            message: 'Review created successfully',
+            message: 'Thank you for your review. It will be visible once approved by the admin.',
             data: result
         });
     } catch (err) {

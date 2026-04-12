@@ -58,6 +58,9 @@ router.get('/findById/:id', eventController.findById);
  */
 router.get('/category/:category', eventController.findByCategory);
 
+// Get events by service id
+router.get('/service/:service_id', eventController.findByServiceId);
+
 /**
  * @swagger
  * /api/event/create:
@@ -75,8 +78,14 @@ router.get('/category/:category', eventController.findByCategory);
  *             properties:
  *               eventName:
  *                 type: string
- *               serviceCategory:
- *                 type: string
+ *               service_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               serviceCategories:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               skills:
  *                 type: array
  *                 items:
@@ -119,8 +128,14 @@ router.post('/create', authenticateJWT, upload.fields([
  *             properties:
  *               eventName:
  *                 type: string
- *               serviceCategory:
- *                 type: string
+ *               service_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               serviceCategories:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               skills:
  *                 type: array
  *                 items:

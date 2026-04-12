@@ -40,6 +40,26 @@ router.get('/findById/:id', serviceController.findById);
 
 /**
  * @swagger
+ * /api/service/findByIdWithProfiles/{id}:
+ *   get:
+ *     summary: Get service by ID with business profiles
+ *     tags: [Services]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Service and business profiles found
+ *       404:
+ *         description: Service not found
+ */
+router.get('/findByIdWithProfiles/:id', serviceController.findByIdWithProfiles);
+
+/**
+ * @swagger
  * /api/service/category/{category}:
  *   get:
  *     summary: Get services by category
