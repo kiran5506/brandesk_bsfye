@@ -9,6 +9,6 @@ COPY . .
 
 ENV NODE_ENV=production
 
-EXPOSE 5004
+EXPOSE 4000
 
 CMD ["node", "src/index.js"]
