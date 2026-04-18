@@ -62,4 +62,24 @@ router.post('/create-order', authenticateJWT, paymentController.createOrder);
  */
 router.post('/verify', authenticateJWT, paymentController.verifyPayment);
 
+/**
+ * @swagger
+ * /api/payment/transactions/{vendorId}:
+ *   get:
+ *     summary: Get paid/failed transactions for a vendor
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: vendorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of transactions
+ */
+router.get('/transactions/:vendorId', authenticateJWT, paymentController.getTransactions);
+
 module.exports = router;

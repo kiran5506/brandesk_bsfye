@@ -47,6 +47,7 @@ const videoRouter = require('./routes/videoRouter');
 const paymentRouter = require('./routes/paymentRouter');
 const statsRouter = require('./routes/statsRouter');
 const wishlistRouter = require('./routes/wishlistRouter');
+const leadAssignmentRouter = require('./routes/leadAssignmentRouter');
 
 const app = express();
 const PORT = process.env.PORT || 5003;
@@ -119,6 +120,7 @@ app.use("/api/video", videoRouter);
 app.use("/api/payment", paymentRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/wishlist", wishlistRouter);
+app.use("/api/lead-assignments", leadAssignmentRouter);
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)

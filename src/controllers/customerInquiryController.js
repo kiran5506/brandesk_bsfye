@@ -1,4 +1,9 @@
 const CustomerInquiry = require('../models/customerInquiryModel');
+const Customer = require('../models/customerModel');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const mongoose = require('mongoose');
+const { assignVendorsToInquiry } = require('../utils/leadAssignmentService');
 
 /**
  * Create a new customer inquiry
@@ -6,10 +11,26 @@ const CustomerInquiry = require('../models/customerInquiryModel');
  */
 exports.create = async (req, res) => {
   try {
-    const { customer_name, customer_mobile, city, event_date } = req.body;
+    const {
+      name,
+      customer_name,
+      mobile_number,
+      customer_mobile,
+      city_id,
+      city,
+      service_id,
+      event_date,
+      enquiry_date,
+      enquiry_type
+    } = req.body;
+
+    const resolvedName = name || customer_name;
+    const resolvedMobile = mobile_number || customer_mobile;
+    const resolvedEventDate = event_date || enquiry_date;
+    const resolvedEnquiryType = enquiry_type || 'callback';
 
     // Validation
-    if (!customer_name || !customer_mobile || !event_date) {
+    if (!resolvedName || !resolvedMobile || !resolvedEventDate) {
       return res.status(400).json({
         status: false,
         message: 'All fields are required'
@@ -17,39 +38,74 @@ exports.create = async (req, res) => {
     }
 
     // Validate phone number (10 digits)
-    if (!/^[0-9]{10}$/.test(customer_mobile)) {
+    if (!/^[0-9]{10}$/.test(resolvedMobile)) {
       return res.status(400).json({
         status: false,
         message: 'Customer mobile must be a valid 10-digit number'
       });
     }
 
-    // Check for existing inquiry with same mobile number and event date
-    const existingInquiry = await CustomerInquiry.findOne({
-      customer_mobile,
-      event_date: new Date(event_date),
+    if (!['callback', 'enquiry'].includes(resolvedEnquiryType)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Invalid enquiry type'
+      });
+    }
+
+    let customer = await Customer.findOne({ mobile_number: resolvedMobile });
+
+    if (!customer) {
+      // const randomPassword = crypto
+      //   .randomBytes(6)
+      //   .toString('base64')
+      //   .replace(/[^a-zA-Z0-9]/g, '')
+      //   .slice(0, 10);
+      const randomPassword = '123456';
+      const hashedPassword = await bcrypt.hash(String(randomPassword), 10);
+      const generatedEmail = `${resolvedMobile}@bsfye.com`;
+
+      const newCustomer = new Customer({
+        name: resolvedName,
+        mobile_number: resolvedMobile,
+        email: generatedEmail,
+        password: hashedPassword,
+        type: 'callback',
+        isActive: true
+      });
+
+      customer = await newCustomer.save();
+    }
+
+    const inquiryFilter = {
+      customer_id: customer._id,
+      enquiry_type: resolvedEnquiryType,
       isActive: true
-    });
+    };
+
+    const existingInquiry = await CustomerInquiry.findOne(inquiryFilter);
 
     if (existingInquiry) {
       return res.status(400).json({
         status: false,
-        message: 'An inquiry with this mobile number and event date already exists'
+        message: 'An inquiry already exists for this mobile number'
       });
     }
 
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const newInquiry = new CustomerInquiry({
-      customer_name,
-      customer_mobile,
-      city,
-      event_date: new Date(event_date)
+      customer_id: customer._id,
+      enquiry_type: resolvedEnquiryType,
+      city_id: city_id && mongoose.Types.ObjectId.isValid(city_id) ? city_id : undefined,
+      city_name: city && (!city_id || !mongoose.Types.ObjectId.isValid(city_id)) ? city : undefined,
+      enquiry_date: resolvedEventDate ? new Date(resolvedEventDate) : undefined,
+      service_id: service_id && mongoose.Types.ObjectId.isValid(service_id) ? service_id : undefined,
+      OTP: otp,
+      is_verified: false
     });
 
     const result = await newInquiry.save();
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    result.OTP = otp;
-    await result.save();
+  await assignVendorsToInquiry(result, { limit: 5 });
 
     res.status(201).json({
       status: true,
@@ -287,11 +343,14 @@ exports.delete = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
     const { inquiry_id, otp_code } = req.body;
     try {
-        const inquiry = await CustomerInquiry.findById(inquiry_id);
+    const inquiry = await CustomerInquiry.findById(inquiry_id);
         if (!inquiry) {
             return res.status(404).json({ status: false, message: "Inquiry not found" });
         }
-        if (inquiry.OTP !== otp_code) {
+    if (inquiry.is_verified) {
+      return res.status(400).json({ status: false, message: "Inquiry already verified" });
+    }
+    if (!inquiry.OTP || inquiry.OTP !== otp_code) {
             return res.status(400).json({ status: false, message: "Invalid OTP" });
         }
         inquiry.is_verified = true;

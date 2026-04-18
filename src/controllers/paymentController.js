@@ -9,6 +9,13 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+const generateReceipt = (leadPackageId) => {
+    const packageFragment = String(leadPackageId || '').slice(-8);
+    const timestampFragment = Date.now().toString(36);
+    // Keep well under Razorpay's 40-char limit.
+    return `lp_${packageFragment}_${timestampFragment}`;
+};
+
 const getErrorMessage = (err) => {
     if (!err) return 'Unknown error';
     if (typeof err === 'string') return err;
@@ -55,7 +62,7 @@ exports.createOrder = async (req, res) => {
         const order = await razorpay.orders.create({
             amount,
             currency: 'INR',
-            receipt: `leadpkg_${leadPackageId}_${Date.now()}`,
+            receipt: generateReceipt(leadPackageId),
             notes: {
                 vendorId: resolvedVendorId.toString(),
                 leadPackageId: leadPackageId.toString(),
@@ -67,7 +74,7 @@ exports.createOrder = async (req, res) => {
             leadPackageId,
             razorpayOrderId: order.id,
             amount: leadPackage.amount,
-            currency: order.currency,
+            currency: 'INR',
             status: 'created',
         });
 
@@ -75,9 +82,10 @@ exports.createOrder = async (req, res) => {
             status: true,
             message: 'Order created successfully.',
             data: {
+                key: process.env.RAZORPAY_KEY_ID,
                 order,
                 amount,
-                currency: order.currency,
+                currency: 'INR',
                 packageName: leadPackage.packageName,
                 totalLeads: leadPackage.totalLeads,
             },
@@ -169,6 +177,40 @@ exports.verifyPayment = async (req, res) => {
                 vendorId: vendor._id,
                 credits: vendor.credits,
                 leadPackageId: leadPackage._id,
+            },
+        });
+    } catch (err) {
+        const message = getErrorMessage(err);
+        res.status(500).json({ status: false, message: `An error occurred: ${message}` });
+    }
+};
+
+// ── Get paid / failed transactions for a vendor ──
+exports.getTransactions = async (req, res) => {
+    const { vendorId } = req.params;
+    const tokenVendorId = req.user?.id;
+
+    try {
+        const resolvedVendorId = vendorId || tokenVendorId;
+        if (!resolvedVendorId) {
+            return res.status(400).json({ status: false, message: 'Vendor ID is required.' });
+        }
+
+        const transactions = await Payment.find({
+            vendor_id: resolvedVendorId,
+            status: { $in: ['paid', 'failed'] },
+        })
+            .populate('leadPackageId', 'packageName totalLeads amount')
+            .sort({ createdAt: -1 });
+
+        const vendor = await Vendor.findById(resolvedVendorId).select('name email mobile_number');
+
+        res.status(200).json({
+            status: true,
+            message: 'Transactions fetched successfully.',
+            data: {
+                transactions,
+                vendor: vendor || {},
             },
         });
     } catch (err) {

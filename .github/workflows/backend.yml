@@ -1,0 +1,45 @@
+name: Deploy node application
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: bsfye/bsfye-backend:latest
+  deploy:
+    needs: build
+    runs-on: self-hosted  
+    steps:
+      - name: Pull Image from Docker Hub
+        run: docker pull bsfye/bsfye-backend:latest
+      - name: Stop and remove existing container
+        run: |
+          docker stop bsfye-app-container || true
+          docker rm bsfye-app-container || true
+      - name: Run Docker Container
+        run: |
+          docker run -d --restart=always -p 4000:4000 --name bsfye-app-container \
+            -e PORT=4000 \
+            -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            -e MONGO_URL="${{ secrets.MONGO_URL }}" \
+            -e BASE_URL="${{ secrets.BASE_URL }}" \
+            -e RAZORPAY_KEY_ID="${{ secrets.RAZORPAY_KEY_ID }}" \
+            -e RAZORPAY_KEY_SECRET="${{ secrets.RAZORPAY_KEY_SECRET }}" \
+            bsfye/bsfye-backend:latest
