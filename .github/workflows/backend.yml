@@ -25,7 +25,7 @@ jobs:
           tags: bsfye/bsfye-backend:latest
   deploy:
     needs: build
-    runs-on: self-hosted  
+    runs-on: ubuntu-latest 
     steps:
       - name: Pull Image from Docker Hub
         run: docker pull bsfye/bsfye-backend:latest
