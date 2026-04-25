@@ -56,17 +56,17 @@ exports.create = async (req, res) => {
         // Handle file uploads
         let profilePicture = "";
         if (files.profilePicture) {
-            profilePicture = files.profilePicture[0].filename;
+            profilePicture = files.profilePicture[0].key;
         }
 
         let documents = {
-            aadharFront: files.aadharFront ? files.aadharFront[0].filename : "",
-            aadharBack: files.aadharBack ? files.aadharBack[0].filename : "",
-            registrationCopy: files.registrationCopy ? files.registrationCopy[0].filename : "",
-            gst: files.gst ? files.gst[0].filename : ""
+            aadharFront: files.aadharFront ? files.aadharFront[0].key : "",
+            aadharBack: files.aadharBack ? files.aadharBack[0].key : "",
+            registrationCopy: files.registrationCopy ? files.registrationCopy[0].key : "",
+            gst: files.gst ? files.gst[0].key : ""
         };
 
-        const coverImages = files.coverImages ? files.coverImages.map((file) => file.filename) : [];
+        const coverImages = files.coverImages ? files.coverImages.map((file) => file.key) : [];
 
         // Parse skills and languages (they come as comma-separated strings or arrays)
         const skillsArray = Array.isArray(skills) ? skills : (skills ? skills.split(',').map(s => s.trim()) : []);
@@ -138,18 +138,18 @@ exports.edit = async (req, res) => {
         // Handle file uploads
         let profilePicture = businessProfile.profilePicture;
         if (files.profilePicture) {
-            profilePicture = files.profilePicture[0].filename;
+            profilePicture = files.profilePicture[0].key;
         }
 
         let documents = { ...businessProfile.documents };
-        if (files.aadharFront) documents.aadharFront = files.aadharFront[0].filename;
-        if (files.aadharBack) documents.aadharBack = files.aadharBack[0].filename;
-        if (files.registrationCopy) documents.registrationCopy = files.registrationCopy[0].filename;
-        if (files.gst) documents.gst = files.gst[0].filename;
+        if (files.aadharFront) documents.aadharFront = files.aadharFront[0].key;
+        if (files.aadharBack) documents.aadharBack = files.aadharBack[0].key;
+        if (files.registrationCopy) documents.registrationCopy = files.registrationCopy[0].key;
+        if (files.gst) documents.gst = files.gst[0].key;
 
         const existingCoverImages = businessProfile.cover_images || [];
         const incomingCoverImages = files.coverImages
-            ? files.coverImages.map((file) => file.filename)
+            ? files.coverImages.map((file) => file.key)
             : [];
         const coverImages = [...existingCoverImages, ...incomingCoverImages].slice(0, 3);
 

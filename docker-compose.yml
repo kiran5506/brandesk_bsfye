@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  backend:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      # Read secrets from the host environment or from a local .env file
+      - AWS_REGION
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_S3_BUCKET
+      - BASE_URL
+    # Add other env vars as needed
+    # volumes, depends_on, etc. as needed

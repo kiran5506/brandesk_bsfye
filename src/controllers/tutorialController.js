@@ -11,7 +11,7 @@ exports.create = async (req, res) => {
     try {
         let image = "";
         if (files && files.image) {
-            image = files.image[0].filename;
+            image = files.image[0].key;
         }
 
         const newTutorial = new Tutorial({
@@ -41,7 +41,7 @@ exports.edit = async (req, res) => {
 
         let image = "";
         if (files && files.image) {
-            image = files.image[0].filename;
+            image = files.image[0].key;
         } else {
             image = tutorial.image;
         }

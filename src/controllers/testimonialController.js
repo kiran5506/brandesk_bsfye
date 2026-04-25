@@ -19,7 +19,7 @@ exports.create = async (req, res) => {
 
         let image = "";
         if (files) {
-            image = files.image ? files.image[0].filename : "";
+            image = files.image ? files.image[0].key : "";
         }
 
         if (!image) {
@@ -58,7 +58,7 @@ exports.edit = async (req, res) => {
         }
 
         if (files) {
-            image = files.image ? files.image[0].filename : testimonial.image;
+            image = files.image ? files.image[0].key : testimonial.image;
         } else {
             image = testimonial.image;
         }

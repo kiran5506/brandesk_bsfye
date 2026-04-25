@@ -14,13 +14,13 @@ exports.siteSettings = async (req, res) => {
             favicon = "";
 
         if (files && files.logo && files.logo[0]) {
-            logo = files.logo[0].filename;
+            logo = files.logo[0].key;
         }
         if (files && files.footer_logo && files.footer_logo[0]) {
-            footer_logo = files.footer_logo[0].filename;
+            footer_logo = files.footer_logo[0].key;
         }
         if (files && files.favicon && files.favicon[0]) {
-            favicon = files.favicon[0].filename;
+            favicon = files.favicon[0].key;
         }
 
         const payload = {

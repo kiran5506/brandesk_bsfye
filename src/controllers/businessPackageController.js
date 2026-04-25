@@ -44,7 +44,7 @@ exports.create = async (req, res) => {
 
         let coverImage = '';
         if (files && files.coverImage) {
-            coverImage = files.coverImage[0].filename;
+            coverImage = files.coverImage[0].key;
         }
 
         const cityPricing = normalizePricing(parseCityPricing(req.body.cityPricing));
@@ -79,7 +79,7 @@ exports.edit = async (req, res) => {
 
         let coverImage = existingPackage.coverImage;
         if (files && files.coverImage) {
-            coverImage = files.coverImage[0].filename;
+            coverImage = files.coverImage[0].key;
         }
 
         const cityPricing = normalizePricing(parseCityPricing(req.body.cityPricing));

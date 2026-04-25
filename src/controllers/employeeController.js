@@ -39,13 +39,13 @@ exports.create = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Process file uploads
-    const passPhoto = files.passPhoto ? files.passPhoto[0].filename : "";
-    const aadharFront = files.aadharFront ? files.aadharFront[0].filename : "";
-    const aadharBack = files.aadharBack ? files.aadharBack[0].filename : "";
-    const pan = files.pan ? files.pan[0].filename : "";
-    const rationCardFront = files.rationCardFront ? files.rationCardFront[0].filename : "";
-    const higherEducation = files.higherEducation ? files.higherEducation[0].filename : "";
-    const resume = files.resume ? files.resume[0].filename : "";
+    const passPhoto = files.passPhoto ? files.passPhoto[0].key : "";
+    const aadharFront = files.aadharFront ? files.aadharFront[0].key : "";
+    const aadharBack = files.aadharBack ? files.aadharBack[0].key : "";
+    const pan = files.pan ? files.pan[0].key : "";
+    const rationCardFront = files.rationCardFront ? files.rationCardFront[0].key : "";
+    const higherEducation = files.higherEducation ? files.higherEducation[0].key : "";
+    const resume = files.resume ? files.resume[0].key : "";
 
     const newEmployee = new Employee({
       name,
@@ -154,25 +154,25 @@ exports.edit = async (req, res) => {
 
     // Handle file updates
     if (files.passPhoto) {
-      updateData.passPhoto = files.passPhoto[0].filename;
+      updateData.passPhoto = files.passPhoto[0].key;
     }
     if (files.aadharFront) {
-      updateData.aadharFront = files.aadharFront[0].filename;
+      updateData.aadharFront = files.aadharFront[0].key;
     }
     if (files.aadharBack) {
-      updateData.aadharBack = files.aadharBack[0].filename;
+      updateData.aadharBack = files.aadharBack[0].key;
     }
     if (files.pan) {
-      updateData.pan = files.pan[0].filename;
+      updateData.pan = files.pan[0].key;
     }
     if (files.rationCardFront) {
-      updateData.rationCardFront = files.rationCardFront[0].filename;
+      updateData.rationCardFront = files.rationCardFront[0].key;
     }
     if (files.higherEducation) {
-      updateData.higherEducation = files.higherEducation[0].filename;
+      updateData.higherEducation = files.higherEducation[0].key;
     }
     if (files.resume) {
-      updateData.resume = files.resume[0].filename;
+      updateData.resume = files.resume[0].key;
     }
 
     const result = await Employee.findByIdAndUpdate(id, updateData, {

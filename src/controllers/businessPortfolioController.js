@@ -26,7 +26,7 @@ exports.create = async (req, res) => {
             if (!acc[file.fieldname]) {
                 acc[file.fieldname] = [];
             }
-            acc[file.fieldname].push(file.filename);
+            acc[file.fieldname].push(file.key);
             return acc;
         }, {});
 

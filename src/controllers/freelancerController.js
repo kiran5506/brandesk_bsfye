@@ -104,7 +104,7 @@ exports.create = async (req, res) => {
             });
         }
 
-        const profileImage = files.profile ? files.profile[0].filename : '';
+        const profileImage = files.profile ? files.profile[0].key : '';
         if (!profileImage) {
             return res.status(400).json({
                 status: false,
@@ -112,7 +112,7 @@ exports.create = async (req, res) => {
             });
         }
 
-        const imageFiles = files.images ? files.images.map((file) => file.filename) : [];
+        const imageFiles = files.images ? files.images.map((file) => file.key) : [];
         if (!imageFiles.length) {
             return res.status(400).json({
                 status: false,
@@ -120,7 +120,7 @@ exports.create = async (req, res) => {
             });
         }
 
-        const videoFiles = files.videos ? files.videos.map((file) => file.filename) : [];
+        const videoFiles = files.videos ? files.videos.map((file) => file.key) : [];
 
         const newFreelancer = new Freelancer({
             name,

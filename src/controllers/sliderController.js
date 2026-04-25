@@ -11,8 +11,8 @@ exports.create = async (req, res) => {
         let banner_desktop = "";
        // let banner_mobile = "";
         if(files){
-            banner_desktop = files.bannerDesktop ? files.bannerDesktop[0].filename : "";
-            //banner_mobile = files.bannerMobile ? files.bannerMobile[0].filename : "";
+            banner_desktop = files.bannerDesktop ? files.bannerDesktop[0].key : "";
+            //banner_mobile = files.bannerMobile ? files.bannerMobile[0].key : "";
         }
         const newSlider = new Slider({bannerDesktop: banner_desktop, linkTitle, linkUrl, description});
         const result = await newSlider.save();
@@ -35,8 +35,8 @@ exports.edit = async (req, res) => {
             return res.status(404).json({ status: false, message: "Sliderdata not found" });
         }
         if(files){
-            banner_desktop = files.bannerDesktop ? files.bannerDesktop[0].filename : slider.bannerDesktop;
-            //banner_mobile = files.bannerMobile ? files.bannerMobile[0].filename : slider.bannerMobile;
+            banner_desktop = files.bannerDesktop ? files.bannerDesktop[0].key : slider.bannerDesktop;
+            //banner_mobile = files.bannerMobile ? files.bannerMobile[0].key : slider.bannerMobile;
         }else{
             banner_desktop = slider.bannerDesktop;
            // banner_mobile = slider.bannerMobile;

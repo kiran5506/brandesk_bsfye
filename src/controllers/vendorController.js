@@ -16,7 +16,7 @@ exports.edit = async (req, res) => {
         }
 
         if(files){
-            profile_image = files.profile_image ? files.profile_image[0].filename : vendorData.profile_image;
+            profile_image = files.profile_image ? files.profile_image[0].key : vendorData.profile_image;
         }else{
             profile_image = vendorData.profile_image;
         }

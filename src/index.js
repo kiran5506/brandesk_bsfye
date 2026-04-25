@@ -50,7 +50,7 @@ const wishlistRouter = require('./routes/wishlistRouter');
 const leadAssignmentRouter = require('./routes/leadAssignmentRouter');
 
 const app = express();
-const PORT = process.env.PORT || 5003;
+const PORT = process.env.PORT;
 
 app.use(cors());
 app.use(helmet());

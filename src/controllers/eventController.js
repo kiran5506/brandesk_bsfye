@@ -21,7 +21,7 @@ exports.create = async (req, res) => {
     try {
         let image = "";
         if (files && files.image) {
-            image = files.image[0].filename;
+            image = files.image[0].key;
         }
 
         const skillsArray = skills ? (Array.isArray(skills) ? skills : [skills]) : [];
@@ -67,7 +67,7 @@ exports.edit = async (req, res) => {
 
         let image = "";
         if (files && files.image) {
-            image = files.image[0].filename;
+            image = files.image[0].key;
         } else {
             image = event.image;
         }
