@@ -50,9 +50,8 @@ const wishlistRouter = require('./routes/wishlistRouter');
 const leadAssignmentRouter = require('./routes/leadAssignmentRouter');
 
 const app = express();
-const PORT = process.env.PORT;
-
-app.use(cors());
+// Default to 4000 when PORT is not provided by the environment
+const PORT = process.env.PORT || 4000;
 app.use(helmet());
 app.use(cookieParser());
 app.use(express.json());
@@ -123,5 +122,6 @@ app.use("/api/wishlist", wishlistRouter);
 app.use("/api/lead-assignments", leadAssignmentRouter);
 
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
-})
+  console.log(`Server running on port ${PORT}`);
+  console.log(`NODE_ENV=${process.env.NODE_ENV || 'development'} BASE_URL=${process.env.BASE_URL || ''}`);
+});

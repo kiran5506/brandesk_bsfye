@@ -25,6 +25,9 @@ ENV AWS_REGION=$AWS_REGION
 ENV AWS_S3_BUCKET=$AWS_S3_BUCKET
 ENV BASE_URL=$BASE_URL
 
+# Default port used by the application
+ENV PORT=4000
+
 EXPOSE 4000
 
 CMD ["node", "src/index.js"]
