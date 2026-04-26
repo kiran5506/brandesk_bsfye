@@ -1,6 +1,7 @@
 const Vendor = require("../models/vendorModule");
 var jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { sendEmail } = require('../utils/mail');
 
 exports.login = async (req, res) => {
     const { email, password } = req.body;
@@ -49,6 +50,13 @@ exports.register = async (req, res) => {
         const hashPassword = await bcrypt.hash(password, 10);
         // generate 4 digit OTP
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+        //send Mail to vendor with OTP for verification
+        const to = email;
+        const subject = 'OTP for Vendor Registration';
+        const text = 'This OTP is for vendor registration';
+        const html = `<p>This OTP is for vendor registration</p><h2>${otp}</h2>`;
+        const response = await sendEmail(to, subject, text, html);
 
         const newVendor = new Vendor({name, email, mobile_number, password: hashPassword, acceptTerms, otp_code: otp});
         const result = await newVendor.save();
