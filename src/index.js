@@ -52,6 +52,7 @@ const leadAssignmentRouter = require('./routes/leadAssignmentRouter');
 const app = express();
 // Default to 4000 when PORT is not provided by the environment
 const PORT = process.env.PORT || 4000;
+app.use(cors());
 app.use(helmet());
 app.use(cookieParser());
 app.use(express.json());
