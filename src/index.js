@@ -62,18 +62,11 @@ app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, { explorer: true }));
 
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests from the allowed domains
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true); // No error, allow request
-        } else {
-            callback(new Error('Not allowed by CORS')); // Block other origins
-        }
-    },
-    origin: ['http://localhost:3000', 'https://www.bsfye.com/', 'https://bsfye.com/'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
+  origin: [
+    "https://bsfye.com",
+    "https://api.bsfye.com"
+  ],
+  credentials: true
 }));
 
 app.use("/uploads", express.static('uploads'));
