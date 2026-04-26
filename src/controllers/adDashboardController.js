@@ -1,7 +1,6 @@
 const Settings = require("../models/settingsModule");
 const baseUrl = process.env.BASE_URL;
 
-console.log("Base URL from environment:", process.env.BASE_URL);
 
 exports.siteSettings = async (req, res) => {
     const id = req.params.id;
@@ -67,8 +66,6 @@ exports.siteSettings = async (req, res) => {
 
 exports.getSiteSettings = async (req, res) => {
     const id = req.params.id;
-
-    console.log("Fetching settings for ID:", id);
     console.log("Base URL from environment:", process.env.BASE_URL);
     try {
         const settings = await Settings.findOne({ _id: id }).select('-__v -createdAt -updatedAt -_id');
