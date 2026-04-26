@@ -52,6 +52,25 @@ const leadAssignmentRouter = require('./routes/leadAssignmentRouter');
 const app = express();
 // Default to 4000 when PORT is not provided by the environment
 const PORT = process.env.PORT || 4000;
+
+app.use((req, res, next) => {
+    next();
+});
+
+const allowedOrigins = ['https://www.bsfye.com', 'https://bsfye.com'];
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests from the allowed domains
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true); // No error, allow request
+        } else {
+            callback(new Error('Not allowed by CORS')); // Block other origins
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+}));
 app.use(helmet());
 app.use(cookieParser());
 app.use(express.json());
@@ -60,14 +79,6 @@ app.use(express.urlencoded({ extended: true }));
 // Swagger UI setup
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, { explorer: true }));
-
-app.use(cors({
-  origin: [
-    "https://bsfye.com",
-    "https://api.bsfye.com"
-  ],
-  credentials: true
-}));
 
 app.use("/uploads", express.static('uploads'));
 
