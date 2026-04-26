@@ -123,5 +123,6 @@ app.use("/api/lead-assignments", leadAssignmentRouter);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Connected to BASE_URL at ${process.env.BASE_URL}`);
   console.log(`NODE_ENV=${process.env.NODE_ENV || 'development'} BASE_URL=${process.env.BASE_URL || ''}`);
 });
