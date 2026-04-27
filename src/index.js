@@ -39,6 +39,7 @@ const customerInquiryRouter = require('./routes/customerInquiryRouter');
 const customerRouter = require('./routes/customerRouter');
 const customerAuthRouter = require('./routes/customerAuthRouter');
 const contactSupportRouter = require('./routes/contactSupportRouter');
+const contactUsRouter = require('./routes/contactUsRouter');
 const feedbackRouter = require('./routes/feedbackRouter');
 const reviewRouter = require('./routes/reviewRouter');
 const freelancerRouter = require('./routes/freelancerRouter');
@@ -57,7 +58,7 @@ app.use((req, res, next) => {
     next();
 });
 
-const allowedOrigins = ['https://www.bsfye.com', 'https://bsfye.com'];
+const allowedOrigins = ['https://www.bsfye.com', 'https://bsfye.com', 'http://localhost:3000'];
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests from the allowed domains
@@ -118,6 +119,9 @@ app.use("/api/inquiry", customerInquiryRouter);
 /** Customer Module */
 app.use("/api/customerauth", customerAuthRouter);
 app.use("/api/customer", customerRouter);
+
+/** Public endpoints */
+app.use('/api/public', contactUsRouter);
 
 /** Contact Support Module */
 app.use("/api/contact-support", contactSupportRouter);
