@@ -1,4 +1,11 @@
 const Settings = require("../models/settingsModule");
+const CustomerInquiry = require('../models/customerInquiryModel');
+const LeadPackage = require('../models/leadPackageModel');
+const Vendor = require('../models/vendorModule');
+const Customer = require('../models/customerModel');
+const City = require('../models/cityModel');
+const Language = require('../models/languageModel');
+const Skill = require('../models/skillModel');
 const baseUrl = process.env.BASE_URL;
 
 
@@ -86,6 +93,44 @@ exports.getSiteSettings = async (req, res) => {
         }
 
         res.status(200).json({ status: true, data: settings });
+    } catch (err) {
+        res.status(500).send(`An error occurred: ${err.message}`);
+    }
+}
+
+exports.getDashboardCounts = async (req, res) => {
+    try {
+        const [
+            leads,
+            packages,
+            vendors,
+            customers,
+            cities,
+            languages,
+            skills
+        ] = await Promise.all([
+            CustomerInquiry.countDocuments(),
+            LeadPackage.countDocuments(),
+            Vendor.countDocuments(),
+            Customer.countDocuments(),
+            City.countDocuments(),
+            Language.countDocuments(),
+            Skill.countDocuments(),
+        ]);
+
+        res.status(200).json({
+            status: true,
+            message: 'Admin dashboard counts fetched successfully.',
+            data: {
+                leads,
+                packages,
+                vendors,
+                customers,
+                cities,
+                languages,
+                skills,
+            },
+        });
     } catch (err) {
         res.status(500).send(`An error occurred: ${err.message}`);
     }

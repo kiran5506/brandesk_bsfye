@@ -27,6 +27,7 @@ const authenticateJWT = require('../middlewares/authToken');
  *         description: No cities found
  */
 router.get('/list', cityController.list);
+router.get('/search', cityController.search);
 
 /**
  * @swagger

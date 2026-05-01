@@ -1,5 +1,7 @@
 const City = require('../models/cityModel');
 
+const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 exports.create = async (req, res) => {
     const { cityName } = req.body;
     
@@ -22,8 +24,12 @@ exports.create = async (req, res) => {
 exports.edit = async (req, res) => {
     const { id } = req.params;
     const { cityName } = req.body;
-    
+
     try {
+        if (!cityName) {
+            return res.status(400).json({ status: false, message: "City name is required" });
+        }
+
         const city = await City.findOne({ _id: id });
         if (!city) {
             return res.status(404).json({ status: false, message: "City not found" });
@@ -68,6 +74,26 @@ exports.list = async (req, res) => {
         }
 
         res.status(200).json({ status: true, message: 'Cities list.', data: cities });
+    } catch (err) {
+        res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};
+
+exports.search = async (req, res) => {
+    const term = (req.query.q || req.query.search || '').trim();
+
+    try {
+        if (!term || term.length < 2) {
+            return res.status(200).json({ status: true, message: 'City search results.', data: [] });
+        }
+
+        const regex = new RegExp(escapeRegExp(term), 'i');
+        const cities = await City.find({ cityName: { $regex: regex }, isActive: true })
+            .select('-createdAt -updatedAt -isActive -__v')
+            .sort({ cityName: 1 })
+            .limit(15);
+
+        res.status(200).json({ status: true, message: 'City search results.', data: cities });
     } catch (err) {
         res.status(500).send(`An error occurred: ${err.message}`);
     }

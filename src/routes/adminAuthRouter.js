@@ -158,5 +158,6 @@ router.put('/siteSettings/:id', authenticateJWT, upload.fields([
  *         description: Server error
  */
 router.get('/getSiteSettings/:id', authenticateJWT, adDashboardController.getSiteSettings);
+router.get('/dashboard-counts', authenticateJWT, adDashboardController.getDashboardCounts);
 
 module.exports = router;

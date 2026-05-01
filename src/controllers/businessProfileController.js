@@ -3,9 +3,26 @@ const BusinessPortfolio = require("../models/businessPortfolioModel");
 const BusinessPackage = require("../models/businessPackageModel");
 const Event = require("../models/eventModel");
 const Vendor = require("../models/vendorModule");
+const City = require('../models/cityModel');
+const mongoose = require('mongoose');
 const baseUrl = process.env.BASE_URL;
 
 const mapFileUrls = (files = []) => files.map((file) => baseUrl + file);
+
+const resolveCityId = async (city) => {
+    if (!city) return null;
+
+    const cityValue = String(city).trim();
+    if (!cityValue) return null;
+
+    if (mongoose.Types.ObjectId.isValid(cityValue)) {
+        const cityDoc = await City.findById(cityValue).select('_id');
+        return cityDoc ? cityDoc._id.toString() : null;
+    }
+
+    const cityDoc = await City.findOne({ cityName: { $regex: `^${cityValue}$`, $options: 'i' } }).select('_id');
+    return cityDoc ? cityDoc._id.toString() : null;
+};
 
 exports.create = async (req, res) => {
     console.log(req.body);
@@ -37,6 +54,14 @@ exports.create = async (req, res) => {
             return res.status(400).json({ 
                 status: false, 
                 message: "Required fields are missing (vendor_id, service_id, businessName, city, state, pincode)" 
+            });
+        }
+
+        const resolvedCityId = await resolveCityId(city);
+        if (!resolvedCityId) {
+            return res.status(400).json({
+                status: false,
+                message: 'Invalid city. Please select a valid city from the list.'
             });
         }
 
@@ -81,7 +106,7 @@ exports.create = async (req, res) => {
                 doorNumber,
                 area,
                 landmark,
-                city,
+                city: resolvedCityId,
                 state,
                 pincode
             },
@@ -135,6 +160,14 @@ exports.edit = async (req, res) => {
             return res.status(403).json({ status: false, message: "Unauthorized access" });
         }
 
+        const resolvedCityId = await resolveCityId(city);
+        if (!resolvedCityId) {
+            return res.status(400).json({
+                status: false,
+                message: 'Invalid city. Please select a valid city from the list.'
+            });
+        }
+
         // Handle file uploads
         let profilePicture = businessProfile.profilePicture;
         if (files.profilePicture) {
@@ -169,7 +202,7 @@ exports.edit = async (req, res) => {
                     doorNumber,
                     area,
                     landmark,
-                    city,
+                    city: resolvedCityId,
                     state,
                     pincode
                 },
@@ -369,6 +402,12 @@ exports.detailsById = async (req, res) => {
         }
 
         const vendor = await Vendor.findById(businessProfile.vendor_id?._id || businessProfile.vendor_id, '-password -__v');
+        const cityIdValue = businessProfile?.address?.city ? businessProfile.address.city.toString() : '';
+        const cityDoc = cityIdValue
+            ? await City.findById(cityIdValue).select('cityName')
+            : null;
+        const resolvedCityName = cityDoc?.cityName || businessProfile?.address?.city || '';
+
         const vendorResponse = vendor
             ? {
                 ...vendor.toObject(),
@@ -378,6 +417,11 @@ exports.detailsById = async (req, res) => {
 
         const businessProfileResponse = {
             ...businessProfile.toObject(),
+            address: {
+                ...(businessProfile.address || {}),
+                city: resolvedCityName,
+                city_id: cityIdValue
+            },
             profilePicture: businessProfile.profilePicture ? baseUrl + businessProfile.profilePicture : "",
             documents: {
                 aadharFront: businessProfile.documents?.aadharFront ? baseUrl + businessProfile.documents.aadharFront : "",

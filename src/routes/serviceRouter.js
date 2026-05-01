@@ -17,6 +17,7 @@ const authenticateJWT = require('../middlewares/authToken');
  *         description: No services found
  */
 router.get('/list', serviceController.list);
+router.get('/search', serviceController.search);
 
 /**
  * @swagger
