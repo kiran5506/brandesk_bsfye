@@ -11,9 +11,9 @@ const reviewSchema = new mongoose.Schema({
         ref: 'customer',
         required: true
     },
-    service_id: {
+    business_profile_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Service',
+        ref: 'BusinessProfile',
         default: null
     },
     review: {

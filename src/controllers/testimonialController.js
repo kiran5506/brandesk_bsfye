@@ -98,7 +98,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const testimonials = await Testimonial.find();
+        const testimonials = await Testimonial.find().sort({ _id: -1 });
         if (!testimonials || testimonials.length === 0) {
             return res.status(404).json({ status: false, message: "No testimonials found" });
         }

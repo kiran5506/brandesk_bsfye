@@ -4,7 +4,6 @@ const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'
 
 exports.create = async (req, res) => {
     const { cityName } = req.body;
-    
     try {
         if (!cityName) {
             return res.status(400).json({ status: false, message: "City name is required" });
@@ -68,7 +67,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const cities = await City.find().select('-createdAt -updatedAt -isActive -__v');
+        const cities = await City.find().select('-createdAt -updatedAt -isActive -__v').sort({ _id: -1 });
         if (!cities || cities.length === 0) {
             return res.status(404).json({ status: false, message: "No cities found" });
         }

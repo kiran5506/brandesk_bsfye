@@ -84,7 +84,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const leadPackages = await LeadPackage.find().select('-createdAt -updatedAt -isActive -__v, -description');
+        const leadPackages = await LeadPackage.find().select('-createdAt -updatedAt -isActive -__v, -description').sort({ _id: -1 });
         if (!leadPackages || leadPackages.length === 0) {
             return res.status(404).json({ status: false, message: "No lead packages found" });
         }

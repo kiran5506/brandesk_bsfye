@@ -69,8 +69,13 @@ exports.register = async (req, res) => {
 }
 
 exports.verifyOtp = async (req, res) => {
-    const { vendor_id, otp_code } = req.body;
+    const { vendor_id, otp_code, type } = req.body;
+    const otpType = (type || 'register').toString().toLowerCase();
     try {
+        if (!vendor_id || !otp_code) {
+            return res.status(400).json({ status: false, message: "vendor_id and otp_code are required" });
+        }
+
         const vendor = await Vendor.findById(vendor_id);
         if (!vendor) {
             return res.status(404).json({ status: false, message: "Vendor not found" });
@@ -78,8 +83,26 @@ exports.verifyOtp = async (req, res) => {
         if (vendor.otp_code !== otp_code) {
             return res.status(400).json({ status: false, message: "Invalid OTP" });
         }
-        vendor.is_otp_verified = true;
+
+        if (otpType === 'forgot') {
+            vendor.password_reset_verified = true;
+        } else {
+            vendor.is_otp_verified = true;
+        }
+
+        vendor.otp_code = undefined;
         await vendor.save();
+
+        if (otpType === 'forgot') {
+            return res.status(200).json({
+                status: true,
+                message: "Forgot password OTP verified successfully",
+                data: {
+                    vendor_id: vendor._id,
+                    email: vendor.email
+                }
+            });
+        }
 
         const token = jwt.sign({ id: vendor._id, email: vendor.email}, 
                     process.env.JWT_SECRET, 
@@ -120,7 +143,8 @@ exports.updateProfileCompletionStatus = async (req, res) => {
 }
 
 exports.generateOTP = async (req, res) => {
-    const { vendor_id } = req.body;
+    const { vendor_id, purpose } = req.body;
+    const otpPurpose = (purpose || 'register').toString().toLowerCase();
     try {
         if (!vendor_id) {
             return res.status(400).json({ status: false, message: "Vendor ID is required" });
@@ -136,10 +160,20 @@ exports.generateOTP = async (req, res) => {
         
         // Update vendor with new OTP
         vendor.otp_code = otp;
+        if (otpPurpose === 'forgot') {
+            vendor.password_reset_verified = false;
+        }
         const result = await vendor.save();
 
-        // In production, send OTP via SMS/Email to vendor's phone/email
-        // For now, we'll just log it and return success
+        const subject = otpPurpose === 'forgot' ? 'OTP for Password Reset' : 'OTP for Vendor Registration';
+        const text = otpPurpose === 'forgot'
+            ? 'This OTP is for your password reset request'
+            : 'This OTP is for vendor registration';
+        const html = otpPurpose === 'forgot'
+            ? `<p>This OTP is for your password reset request</p><h2>${otp}</h2>`
+            : `<p>This OTP is for vendor registration</p><h2>${otp}</h2>`;
+        await sendEmail(vendor.email, subject, text, html);
+
         console.log(`OTP generated for vendor ${vendor_id}: ${otp}`);
 
         result.password = undefined;
@@ -154,6 +188,82 @@ exports.generateOTP = async (req, res) => {
         res.status(500).send(`An error occurred: ${err.message}`);
     }
 }
+
+exports.forgotPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        if (!email) {
+            return res.status(400).json({ status: false, message: "Email is required" });
+        }
+
+        const vendor = await Vendor.findOne({ email });
+        if (!vendor) {
+            return res.status(404).json({ status: false, message: "Vendor not found" });
+        }
+
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+        vendor.otp_code = otp;
+        vendor.password_reset_verified = false;
+        await vendor.save();
+
+        await sendEmail(
+            vendor.email,
+            'OTP for Password Reset',
+            'This OTP is for your password reset request',
+            `<p>This OTP is for your password reset request</p><h2>${otp}</h2>`
+        );
+
+        return res.status(200).json({
+            status: true,
+            message: 'Password reset OTP sent successfully',
+            data: {
+                vendor_id: vendor._id,
+                email: vendor.email,
+                mobile_number: vendor.mobile_number,
+            }
+        });
+    } catch (err) {
+        return res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};
+
+exports.resetPassword = async (req, res) => {
+    const { vendor_id, new_password, confirm_password } = req.body;
+
+    try {
+        if (!vendor_id || !new_password || !confirm_password) {
+            return res.status(400).json({ status: false, message: "All fields are required" });
+        }
+
+        const vendor = await Vendor.findById(vendor_id);
+        if (!vendor) {
+            return res.status(404).json({ status: false, message: "Vendor not found" });
+        }
+
+        if (!vendor.password_reset_verified) {
+            return res.status(400).json({ status: false, message: "OTP verification required before resetting password" });
+        }
+
+        if (new_password !== confirm_password) {
+            return res.status(400).json({ status: false, message: "Passwords do not match" });
+        }
+
+        if (new_password.length < 6) {
+            return res.status(400).json({ status: false, message: "Password must be at least 6 characters long" });
+        }
+
+        const hashPassword = await bcrypt.hash(new_password, 10);
+        vendor.password = hashPassword;
+        vendor.otp_code = undefined;
+        vendor.password_reset_verified = false;
+        await vendor.save();
+
+        return res.status(200).json({ status: true, message: 'Password reset successfully' });
+    } catch (err) {
+        return res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};
 
 
 

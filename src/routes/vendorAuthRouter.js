@@ -170,5 +170,7 @@ router.post('/update-profile-completion', vendorAuthController.updateProfileComp
  *         description: Server error
  */
 router.post('/generate-otp', vendorAuthController.generateOTP);
+router.post('/forgot-password', vendorAuthController.forgotPassword);
+router.post('/reset-password', vendorAuthController.resetPassword);
 
 module.exports = router;

@@ -19,6 +19,8 @@ exports.create = async (req, res) => {
       city_id,
       city,
       service_id,
+  package_id,
+  skip_otp,
       event_date,
       enquiry_date,
       enquiry_type
@@ -91,7 +93,8 @@ exports.create = async (req, res) => {
       });
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const shouldSkipOtp = Boolean(skip_otp);
+    const otp = shouldSkipOtp ? undefined : Math.floor(1000 + Math.random() * 9000).toString();
     const newInquiry = new CustomerInquiry({
       customer_id: customer._id,
       enquiry_type: resolvedEnquiryType,
@@ -99,8 +102,9 @@ exports.create = async (req, res) => {
       city_name: city && (!city_id || !mongoose.Types.ObjectId.isValid(city_id)) ? city : undefined,
       enquiry_date: resolvedEventDate ? new Date(resolvedEventDate) : undefined,
       service_id: service_id && mongoose.Types.ObjectId.isValid(service_id) ? service_id : undefined,
+      package_id: package_id && mongoose.Types.ObjectId.isValid(package_id) ? package_id : undefined,
       OTP: otp,
-      is_verified: false
+      is_verified: shouldSkipOtp
     });
 
     const result = await newInquiry.save();

@@ -179,6 +179,7 @@ router.post('/resend-otp', customerAuthController.resendOtp);
  *         description: Server error
  */
 router.post('/forgot-password', customerAuthController.forgotPassword);
+router.post('/verify-forgot-password-otp', customerAuthController.verifyForgotPasswordOtp);
 
 /**
  * @swagger

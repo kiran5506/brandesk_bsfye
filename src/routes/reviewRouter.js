@@ -139,7 +139,7 @@ router.get('/customer/:customer_id', reviewController.findByCustomerId);
  *                 type: string
  *               customer_id:
  *                 type: string
- *               service_id:
+ *               business_profile_id:
  *                 type: string
  *               review:
  *                 type: string

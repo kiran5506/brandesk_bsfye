@@ -93,7 +93,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const services = await Service.find().select('-createdAt -updatedAt -description -skills -isActive');
+        const services = await Service.find().select('-createdAt -updatedAt -description -skills -isActive').sort({ _id: -1 });;
         if (!services || services.length === 0) {
             return res.status(404).json({ status: false, message: "No services found" });
         }
@@ -106,7 +106,7 @@ exports.list = async (req, res) => {
                 portfolioType: service.portfolioType,
                 skills: service.skills,
                 description: service.description,
-                imagePath: baseUrl + service.image,
+                imagePath: service.image ? baseUrl + service.image : '',
                 isActive: service.isActive,
                 createdAt: service.createdAt,
                 updatedAt: service.updatedAt
@@ -294,36 +294,54 @@ exports.findByIdWithProfiles = async (req, res) => {
         }, {});
 
         const vendorIds = businessProfiles.map((profile) => profile.vendor_id?._id || profile.vendor_id);
+        const businessProfileObjectIds = businessProfiles
+            .map((profile) => toObjectId(profile?._id))
+            .filter(Boolean);
+
         const packages = await BusinessPackage.find({
             vendor_id: { $in: vendorIds },
-            service_id: id
-        }).select('vendor_id cityPricing');
+            business_profile_id: { $in: businessProfileObjectIds }
+        }).select('vendor_id business_profile_id cityPricing');
 
         // Prepare vendor ObjectId list for aggregation
         const vendorObjectIds = vendorIds
             .map((v) => toObjectId(v))
             .filter(Boolean);
         const serviceObjectId = toObjectId(id);
-
-        console.log('kiran-->',serviceObjectId, vendorObjectIds);
-
-        // Compute average ratings both scoped to the current service (per-service) and overall per vendor (fallback)
+        // Compute average ratings scoped per business profile, with legacy per-vendor fallback.
         const ratingsFacet = await Review.aggregate([
             {
                 $match: {
                     vendor_id: { $in: vendorObjectIds },
                     isActive: true,
-                    status: 'accepted'
+                    status: { $ne: 'rejected' }
                 }
             },
             {
                 $facet: {
-                    perService: [
-                        { $match: { service_id: serviceObjectId } },
-                        { $group: { _id: '$vendor_id', averageRating: { $avg: '$rating' } } }
+                    perBusinessProfile: [
+                        {
+                            $match: {
+                                business_profile_id: { $in: businessProfileObjectIds }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: '$business_profile_id',
+                                averageRating: { $avg: '$rating' },
+                                reviewCount: { $sum: 1 }
+                            }
+                        }
                     ],
-                    perVendor: [
-                        { $group: { _id: '$vendor_id', averageRating: { $avg: '$rating' } } }
+                    perVendorLegacy: [
+                        { $match: { service_id: serviceObjectId } },
+                        {
+                            $group: {
+                                _id: '$vendor_id',
+                                averageRating: { $avg: '$rating' },
+                                reviewCount: { $sum: 1 }
+                            }
+                        }
                     ]
                 }
             }
@@ -331,30 +349,40 @@ exports.findByIdWithProfiles = async (req, res) => {
 
         console.log('kiran ratings facet-->', JSON.stringify(ratingsFacet, null, 2));
 
-        const perServiceArr = (ratingsFacet && ratingsFacet[0] && ratingsFacet[0].perService) || [];
-        const perVendorArr = (ratingsFacet && ratingsFacet[0] && ratingsFacet[0].perVendor) || [];
+        const perBusinessProfileArr = (ratingsFacet && ratingsFacet[0] && ratingsFacet[0].perBusinessProfile) || [];
+        const perVendorLegacyArr = (ratingsFacet && ratingsFacet[0] && ratingsFacet[0].perVendorLegacy) || [];
 
-        const ratingsByVendorService = perServiceArr.reduce((acc, item) => {
-            acc[item._id?.toString()] = Number(item.averageRating || 0);
+        const ratingsByBusinessProfile = perBusinessProfileArr.reduce((acc, item) => {
+            const key = item?._id?.toString?.();
+            if (!key) return acc;
+            acc[key] = {
+                averageRating: Number(item.averageRating || 0),
+                reviewCount: Number(item.reviewCount || 0)
+            };
             return acc;
         }, {});
 
-        const ratingsByVendor = perVendorArr.reduce((acc, item) => {
-            acc[item._id?.toString()] = Number(item.averageRating || 0);
+        const ratingsByVendorLegacy = perVendorLegacyArr.reduce((acc, item) => {
+            const key = item?._id?.toString?.();
+            if (!key) return acc;
+            acc[key] = {
+                averageRating: Number(item.averageRating || 0),
+                reviewCount: Number(item.reviewCount || 0)
+            };
             return acc;
         }, {});
 
-        const lowestByVendor = packages.reduce((acc, pkg) => {
-            const vendorId = pkg.vendor_id?.toString();
-            if (!vendorId) return acc;
+        const lowestByBusinessProfile = packages.reduce((acc, pkg) => {
+            const profileId = pkg.business_profile_id?.toString();
+            if (!profileId) return acc;
             const pricingList = Array.isArray(pkg.cityPricing) ? pkg.cityPricing : [];
             pricingList.forEach((pricing) => {
                 const offer = Number(pricing?.offerPrice || 0);
                 const market = Number(pricing?.marketPrice || 0);
                 const discount = Number(pricing?.discount || 0);
                 if (!offer) return;
-                if (!acc[vendorId] || offer < acc[vendorId].offerPrice) {
-                    acc[vendorId] = {
+                if (!acc[profileId] || offer < acc[profileId].offerPrice) {
+                    acc[profileId] = {
                         offerPrice: offer,
                         marketPrice: market,
                         discount
@@ -365,10 +393,15 @@ exports.findByIdWithProfiles = async (req, res) => {
         }, {});
 
         const profilesList = businessProfiles.map(profile => {
+            const profileKey = profile?._id?.toString?.() || '';
             const vendorKey = (profile.vendor_id?._id || profile.vendor_id)?.toString();
-            const lowestPricing = vendorKey ? lowestByVendor[vendorKey] : null;
-            // Prefer per-service average rating, fall back to overall vendor average
-            const averageRating = vendorKey ? Number((ratingsByVendorService[vendorKey] !== undefined ? ratingsByVendorService[vendorKey] : ratingsByVendor[vendorKey]) || 0) : 0;
+            const lowestPricing = profileKey ? lowestByBusinessProfile[profileKey] : null;
+
+            const profileRatings = profileKey ? ratingsByBusinessProfile[profileKey] : null;
+            const vendorLegacyRatings = vendorKey ? ratingsByVendorLegacy[vendorKey] : null;
+            const averageRating = Number((profileRatings?.averageRating ?? vendorLegacyRatings?.averageRating ?? 0) || 0);
+            const reviewCount = Number((profileRatings?.reviewCount ?? vendorLegacyRatings?.reviewCount ?? 0) || 0);
+
             const cityIdValue = profile?.address?.city ? profile.address.city.toString() : '';
             const cityName = cityIdValue ? (cityMap[cityIdValue] || profile?.address?.city) : profile?.address?.city;
             const normalizedAddress = {
@@ -402,7 +435,8 @@ exports.findByIdWithProfiles = async (req, res) => {
             lowestOfferPrice: lowestPricing?.offerPrice || 0,
             lowestMarketPrice: lowestPricing?.marketPrice || 0,
             lowestDiscount: lowestPricing?.discount || 0,
-            averageRating
+            averageRating,
+            reviewCount
         });
         });
 

@@ -352,7 +352,27 @@ exports.findByVendorId = async (req, res) => {
             return res.status(404).json({ status: false, message: "No business profiles found for this vendor" });
         }
 
+        const cityIds = [...new Set(
+            businessProfiles
+                .map((profile) => profile?.address?.city)
+                .filter(Boolean)
+                .map((city) => city.toString())
+                .filter((city) => mongoose.Types.ObjectId.isValid(city))
+        )];
+
+        const cityDocs = cityIds.length
+            ? await City.find({ _id: { $in: cityIds } }).select('_id cityName')
+            : [];
+
+        const cityMap = cityDocs.reduce((acc, cityDoc) => {
+            acc[cityDoc._id.toString()] = cityDoc.cityName;
+            return acc;
+        }, {});
+
         const profilesList = businessProfiles.map(profile => {
+            const cityIdValue = profile?.address?.city ? profile.address.city.toString() : '';
+            const resolvedCityName = cityIdValue ? (cityMap[cityIdValue] || profile?.address?.city) : profile?.address?.city;
+
             return {
                 _id: profile._id,
                 vendor_id: profile.vendor_id,
@@ -361,7 +381,10 @@ exports.findByVendorId = async (req, res) => {
                 serviceType: profile.service_id?.serviceType || "",
                 businessName: profile.businessName,
                 profilePicture: profile.profilePicture ? baseUrl + profile.profilePicture : "",
-                address: profile.address,
+                address: {
+                    ...profile.address,
+                    city: resolvedCityName || ""
+                },
                 skills: profile.skills,
                 languages: profile.languages,
                 documents: {

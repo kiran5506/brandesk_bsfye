@@ -7,6 +7,7 @@ const customerSchema = new mongoose.Schema({
     password: { type: String, required: false },
     is_otp_verified: { type: Boolean, default: false },
     otp_code: { type: String, required: false },
+    password_reset_verified: { type: Boolean, default: false },
     type: { type: String, enum: ['direct', 'enquiry', 'callback'], required: true, default: 'direct' },
     isActive: { type: Boolean, default: true }
 }, {

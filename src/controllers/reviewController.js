@@ -7,7 +7,8 @@ const baseUrl = process.env.BASE_URL;
 exports.create = async (req, res) => {
     console.log(req.body);
     
-    const { vendor_id, customer_id, service_id, review, rating } = req.body;
+    const { vendor_id, customer_id, business_profile_id, service_id, review, rating } = req.body;
+    const resolvedBusinessProfileId = business_profile_id || service_id || null;
     
     try {
         // Validation
@@ -36,7 +37,7 @@ exports.create = async (req, res) => {
         const newReview = new Review({
             vendor_id,
             customer_id,
-            service_id: service_id || null,
+            business_profile_id: resolvedBusinessProfileId,
             review,
             rating,
             status: 'pending',
@@ -44,7 +45,14 @@ exports.create = async (req, res) => {
         });
 
         const result = await newReview.save();
-        await result.populate(['vendor_id', 'customer_id', 'service_id']);
+        await result.populate([
+            'vendor_id',
+            'customer_id',
+            {
+                path: 'business_profile_id',
+                select: 'businessName service_id vendor_id address'
+            }
+        ]);
 
         res.status(201).json({
             status: true,
@@ -76,7 +84,7 @@ exports.list = async (req, res) => {
         const reviews = await Review.find(filter)
             .populate('vendor_id', 'name email mobile_number profile_image')
             .populate('customer_id', 'name email mobile_number')
-            .populate('service_id', 'serviceName serviceCategory')
+            .populate('business_profile_id', 'businessName service_id vendor_id address')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -119,7 +127,7 @@ exports.findById = async (req, res) => {
         const review = await Review.findById(id)
             .populate('vendor_id', 'name email mobile_number profile_image')
             .populate('customer_id', 'name email mobile_number')
-            .populate('service_id', 'serviceName serviceCategory');
+            .populate('business_profile_id', 'businessName service_id vendor_id address');
 
         if (!review) {
             return res.status(404).json({
@@ -155,7 +163,7 @@ exports.findByVendorId = async (req, res) => {
 
         const reviews = await Review.find(filter)
             .populate('customer_id', 'name email mobile_number')
-            .populate('service_id', 'serviceName serviceCategory')
+            .populate('business_profile_id', 'businessName service_id vendor_id address')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -201,7 +209,7 @@ exports.findByCustomerId = async (req, res) => {
 
         const reviews = await Review.find(filter)
             .populate('vendor_id', 'name email mobile_number profile_image')
-            .populate('service_id', 'serviceName serviceCategory')
+            .populate('business_profile_id', 'businessName service_id vendor_id address')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -272,7 +280,14 @@ exports.edit = async (req, res) => {
             id,
             updatedData,
             { new: true, runValidators: true }
-        ).populate(['vendor_id', 'customer_id', 'service_id']);
+        ).populate([
+            'vendor_id',
+            'customer_id',
+            {
+                path: 'business_profile_id',
+                select: 'businessName service_id vendor_id address'
+            }
+        ]);
 
         res.status(200).json({
             status: true,

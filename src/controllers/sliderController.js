@@ -66,7 +66,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try{
-        const sliders = await Slider.find();
+        const sliders = await Slider.find().sort({ _id: -1 });;
         if (!sliders || sliders.length === 0) {
             return res.status(404).json({ status: false, message: "No banners found" });
         }

@@ -159,5 +159,10 @@ router.put('/siteSettings/:id', authenticateJWT, upload.fields([
  */
 router.get('/getSiteSettings/:id', authenticateJWT, adDashboardController.getSiteSettings);
 router.get('/dashboard-counts', authenticateJWT, adDashboardController.getDashboardCounts);
+router.get('/profile', authenticateJWT, adminAuthController.getProfile);
+router.put('/profile', authenticateJWT, upload.fields([
+    { name: 'profile_image', maxCount: 1 }
+]), adminAuthController.updateProfile);
+router.put('/change-password', authenticateJWT, adminAuthController.changePassword);
 
 module.exports = router;

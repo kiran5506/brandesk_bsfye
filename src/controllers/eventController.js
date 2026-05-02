@@ -128,7 +128,7 @@ exports.delete = async (req, res) => {
 
 exports.list = async (req, res) => {
     try {
-        const events = await Event.find().select('-createdAt -updatedAt -isActive -__v -skills');
+        const events = await Event.find().select('-createdAt -updatedAt -isActive -__v -skills').sort({ _id: -1 });
         if (!events || events.length === 0) {
             return res.status(404).json({ status: false, message: "No events found" });
         }

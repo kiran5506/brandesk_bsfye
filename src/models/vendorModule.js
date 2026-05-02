@@ -9,6 +9,7 @@ const vendorSchema = new mongoose.Schema({
     profile_image: { type: String, required: false },
     is_otp_verified: { type: Boolean, default: false },
     otp_code: { type: String, required: false },
+    password_reset_verified: { type: Boolean, default: false },
     is_profile_completed: { type: Boolean, default: false },
     is_profile_verified: { type: Boolean, default: false },
     profile_status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
