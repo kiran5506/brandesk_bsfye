@@ -4,6 +4,7 @@ const BusinessProfile = require('../models/businessProfileModel');
 const BusinessPackage = require('../models/businessPackageModel');
 const Review = require('../models/reviewModel');
 const City = require('../models/cityModel');
+const Event = require('../models/eventModel');
 const mongoose = require('mongoose');
 const baseUrl = process.env.BASE_URL;
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -240,6 +241,9 @@ exports.findByCategory = async (req, res) => {
 
 exports.findByIdWithProfiles = async (req, res) => {
     const { id } = req.params;
+    const profileType = (req.query.type || req.query.profile_type || 'top').toString().trim().toLowerCase();
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 12));
     const cityId = (req.query.city_id || req.query.cityId || '').toString().trim();
     const vendorId = (req.query.vendor_id || req.query.vendorId || '').toString().trim();
     const budgetSort = (req.query.budget_sort || req.query.budgetSort || '').toString().trim();
@@ -269,9 +273,46 @@ exports.findByIdWithProfiles = async (req, res) => {
         if (cityId) {
             businessProfileFilter['address.city'] = cityId;
         }
-        if (vendorId) {
-            businessProfileFilter.vendor_id = vendorId;
+
+        if (!['top', 'regular'].includes(profileType)) {
+            return res.status(400).json({ status: false, message: 'Invalid type. Use top or regular.' });
         }
+
+        const vendorFilter = {
+            credits: profileType === 'regular' ? { $eq: 0 } : { $gt: 0 }
+        };
+
+        if (vendorId) {
+            const vendorObjectId = toObjectId(vendorId);
+            if (!vendorObjectId) {
+                return res.status(400).json({ status: false, message: 'Invalid vendor_id' });
+            }
+            vendorFilter._id = vendorObjectId;
+        }
+
+        const eligibleVendors = await Vendor.find(vendorFilter).select('_id');
+        const eligibleVendorIds = eligibleVendors.map((vendor) => vendor._id);
+
+        if (!eligibleVendorIds.length) {
+            return res.status(200).json({
+                status: true,
+                message: 'Service data with business profiles',
+                data: {
+                    service: serviceResponse,
+                    business_profiles: [],
+                    pagination: {
+                        page,
+                        limit,
+                        total: 0,
+                        totalPages: 0,
+                        hasNextPage: false,
+                        hasPrevPage: false
+                    }
+                }
+            });
+        }
+
+        businessProfileFilter.vendor_id = { $in: eligibleVendorIds };
 
         const businessProfiles = await BusinessProfile.find(businessProfileFilter)
             .populate('vendor_id', 'name email mobile_number')
@@ -458,15 +499,296 @@ exports.findByIdWithProfiles = async (req, res) => {
             filteredProfiles = [...filteredProfiles].sort((a, b) => Number(b.lowestDiscount || 0) - Number(a.lowestDiscount || 0));
         }
 
+        // For regular vendors, always show top-rated first.
+        if (profileType === 'regular') {
+            filteredProfiles = [...filteredProfiles].sort((a, b) => {
+                const ratingDiff = Number(b.averageRating || 0) - Number(a.averageRating || 0);
+                if (ratingDiff !== 0) return ratingDiff;
+                return Number(b.reviewCount || 0) - Number(a.reviewCount || 0);
+            });
+        }
+
+        const total = filteredProfiles.length;
+        const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+        const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
+        const startIndex = (safePage - 1) * limit;
+        const endIndex = startIndex + limit;
+        const paginatedProfiles = filteredProfiles.slice(startIndex, endIndex);
+
         res.status(200).json({
             status: true,
-            message: 'Service data with business profiles',
+            message: `Service data with ${profileType} business profiles`,
             data: {
                 service: serviceResponse,
-                business_profiles: filteredProfiles
+                business_profiles: paginatedProfiles,
+                pagination: {
+                    page: safePage,
+                    limit,
+                    total,
+                    totalPages,
+                    hasNextPage: safePage < totalPages,
+                    hasPrevPage: safePage > 1
+                }
             }
         });
     } catch (err) {
         res.status(500).send(`An error occurred: ${err.message}`);
     }
 };
+
+exports.topSuggestions = async (req, res) => {
+    const { business_profile_id: businessProfileId } = req.params;
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(businessProfileId)) {
+            return res.status(400).json({ status: false, message: 'Invalid business_profile_id' });
+        }
+
+        const currentBusinessProfile = await BusinessProfile.findById(businessProfileId)
+            .select('_id service_id');
+
+        if (!currentBusinessProfile) {
+            return res.status(404).json({ status: false, message: 'Business profile not found' });
+        }
+
+        const events = await Event.find({
+            service_ids: currentBusinessProfile.service_id,
+            isActive: true
+        }).select('serviceCategories');
+
+        const categoryKeys = [...new Set(
+            events
+                .flatMap((event) => (Array.isArray(event?.serviceCategories) ? event.serviceCategories : []))
+                .map((category) => String(category || '').trim())
+                .filter(Boolean)
+                .map((category) => category.toLowerCase())
+        )];
+
+        if (!categoryKeys.length) {
+            return res.status(200).json({
+                status: true,
+                message: 'Top suggestions list.',
+                data: {
+                    service_categories: [],
+                    business_profiles: []
+                }
+            });
+        }
+
+        const services = await Service.find({ isActive: true })
+            .select('_id serviceName serviceType');
+
+        const serviceByCategory = services.reduce((acc, serviceDoc) => {
+            const key = String(serviceDoc?.serviceName || '').trim().toLowerCase();
+            if (!key || acc[key]) return acc;
+            acc[key] = serviceDoc;
+            return acc;
+        }, {});
+
+        const matchedServices = categoryKeys
+            .map((key) => serviceByCategory[key])
+            .filter(Boolean);
+
+        const uniqueServiceMap = matchedServices.reduce((acc, serviceDoc) => {
+            const key = serviceDoc?._id?.toString?.();
+            if (!key || acc[key]) return acc;
+            acc[key] = serviceDoc;
+            return acc;
+        }, {});
+
+        const serviceOrder = Object.keys(uniqueServiceMap);
+
+        if (!serviceOrder.length) {
+            return res.status(200).json({
+                status: true,
+                message: 'Top suggestions list.',
+                data: {
+                    service_categories: categoryKeys,
+                    business_profiles: []
+                }
+            });
+        }
+
+        const serviceObjectIds = serviceOrder
+            .map((value) => new mongoose.Types.ObjectId(value));
+
+        const candidateProfiles = await BusinessProfile.find({
+            service_id: { $in: serviceObjectIds },
+            isActive: true,
+            _id: { $ne: currentBusinessProfile._id }
+        })
+            .populate('vendor_id', 'name email mobile_number')
+            .populate('service_id', 'serviceName serviceType')
+            .sort({ createdAt: -1 });
+
+        if (!candidateProfiles.length) {
+            return res.status(200).json({
+                status: true,
+                message: 'Top suggestions list.',
+                data: {
+                    service_categories: matchedServices.map((item) => item?.serviceName).filter(Boolean),
+                    business_profiles: []
+                }
+            });
+        }
+
+        const candidateProfileIds = candidateProfiles.map((profile) => profile._id);
+
+        const cityIds = [...new Set(
+            candidateProfiles
+                .map((profile) => profile?.address?.city)
+                .filter(Boolean)
+                .map((city) => city.toString())
+                .filter((city) => mongoose.Types.ObjectId.isValid(city))
+        )];
+
+        const cityDocs = cityIds.length
+            ? await City.find({ _id: { $in: cityIds } }).select('_id cityName')
+            : [];
+
+        const cityMap = cityDocs.reduce((acc, cityDoc) => {
+            acc[cityDoc._id.toString()] = cityDoc.cityName;
+            return acc;
+        }, {});
+
+        const ratings = await Review.aggregate([
+            {
+                $match: {
+                    business_profile_id: { $in: candidateProfileIds },
+                    isActive: true,
+                    status: { $ne: 'rejected' }
+                }
+            },
+            {
+                $group: {
+                    _id: '$business_profile_id',
+                    averageRating: { $avg: '$rating' },
+                    reviewCount: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const ratingsMap = ratings.reduce((acc, item) => {
+            const key = item?._id?.toString?.();
+            if (!key) return acc;
+            acc[key] = {
+                averageRating: Number(item.averageRating || 0),
+                reviewCount: Number(item.reviewCount || 0)
+            };
+            return acc;
+        }, {});
+
+        const packages = await BusinessPackage.find({
+            business_profile_id: { $in: candidateProfileIds }
+        }).select('business_profile_id cityPricing');
+
+        const lowestByBusinessProfile = packages.reduce((acc, pkg) => {
+            const profileId = pkg?.business_profile_id?.toString?.();
+            if (!profileId) return acc;
+
+            const pricingList = Array.isArray(pkg?.cityPricing) ? pkg.cityPricing : [];
+            pricingList.forEach((pricing) => {
+                const offer = Number(pricing?.offerPrice || 0);
+                const market = Number(pricing?.marketPrice || 0);
+                const discount = Number(pricing?.discount || 0);
+                if (!offer) return;
+                if (!acc[profileId] || offer < acc[profileId].offerPrice) {
+                    acc[profileId] = {
+                        offerPrice: offer,
+                        marketPrice: market,
+                        discount
+                    };
+                }
+            });
+
+            return acc;
+        }, {});
+
+        const normalizedProfiles = candidateProfiles.map((profile) => {
+            const profileId = profile?._id?.toString?.() || '';
+            const cityIdValue = profile?.address?.city ? profile.address.city.toString() : '';
+            const cityName = cityIdValue ? (cityMap[cityIdValue] || profile?.address?.city) : profile?.address?.city;
+            const lowestPricing = lowestByBusinessProfile[profileId] || null;
+            const ratingData = ratingsMap[profileId] || null;
+
+            return {
+                _id: profile._id,
+                vendor_id: profile.vendor_id,
+                service_id: profile.service_id,
+                serviceName: profile.service_id?.serviceName || '',
+                serviceType: profile.service_id?.serviceType || '',
+                businessName: profile.businessName,
+                profilePicture: profile.profilePicture ? baseUrl + profile.profilePicture : '',
+                address: {
+                    ...(profile.address || {}),
+                    city: cityName || '',
+                    city_id: cityIdValue || ''
+                },
+                skills: profile.skills,
+                languages: profile.languages,
+                documents: {
+                    aadharFront: profile.documents?.aadharFront ? baseUrl + profile.documents.aadharFront : '',
+                    aadharBack: profile.documents?.aadharBack ? baseUrl + profile.documents.aadharBack : '',
+                    registrationCopy: profile.documents?.registrationCopy ? baseUrl + profile.documents.registrationCopy : '',
+                    gst: profile.documents?.gst ? baseUrl + profile.documents.gst : ''
+                },
+                about_us: profile.about_us || '',
+                communication_address: profile.communication_address || '',
+                cover_images: profile.cover_images?.map((img) => baseUrl + img) || [],
+                isActive: profile.isActive,
+                createdAt: profile.createdAt,
+                updatedAt: profile.updatedAt,
+                lowestOfferPrice: lowestPricing?.offerPrice || 0,
+                lowestMarketPrice: lowestPricing?.marketPrice || 0,
+                lowestDiscount: lowestPricing?.discount || 0,
+                averageRating: Number(ratingData?.averageRating || 0),
+                reviewCount: Number(ratingData?.reviewCount || 0)
+            };
+        });
+
+        const bestByService = normalizedProfiles.reduce((acc, profile) => {
+            const serviceId = (profile?.service_id?._id || profile?.service_id || '').toString();
+            if (!serviceId) return acc;
+
+            const currentBest = acc[serviceId];
+            if (!currentBest) {
+                acc[serviceId] = profile;
+                return acc;
+            }
+
+            const ratingDiff = Number(profile.averageRating || 0) - Number(currentBest.averageRating || 0);
+            if (ratingDiff > 0) {
+                acc[serviceId] = profile;
+                return acc;
+            }
+
+            if (ratingDiff === 0) {
+                const reviewDiff = Number(profile.reviewCount || 0) - Number(currentBest.reviewCount || 0);
+                if (reviewDiff > 0) {
+                    acc[serviceId] = profile;
+                }
+            }
+
+            return acc;
+        }, {});
+
+        const topSuggestions = serviceOrder
+            .map((serviceId) => bestByService[serviceId])
+            .filter(Boolean);
+
+        res.status(200).json({
+            status: true,
+            message: 'Top suggestions list.',
+            data: {
+                service_categories: serviceOrder
+                    .map((serviceId) => uniqueServiceMap[serviceId]?.serviceName)
+                    .filter(Boolean),
+                business_profiles: topSuggestions
+            }
+        });
+    } catch (err) {
+        res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};
+
+

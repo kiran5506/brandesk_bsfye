@@ -38,6 +38,7 @@ router.get('/search', serviceController.search);
  *         description: Service not found
  */
 router.get('/findById/:id', serviceController.findById);
+router.get('/topSuggestions/:business_profile_id', serviceController.topSuggestions);
 
 /**
  * @swagger
