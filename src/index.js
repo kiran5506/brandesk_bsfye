@@ -38,7 +38,6 @@ const adminAuthRouter = require('./routes/adminAuthRouter');
 const customerInquiryRouter = require('./routes/customerInquiryRouter');
 const customerRouter = require('./routes/customerRouter');
 const customerAuthRouter = require('./routes/customerAuthRouter');
-const contactSupportRouter = require('./routes/contactSupportRouter');
 const contactUsRouter = require('./routes/contactUsRouter');
 const feedbackRouter = require('./routes/feedbackRouter');
 const reviewRouter = require('./routes/reviewRouter');
@@ -123,8 +122,6 @@ app.use("/api/customer", customerRouter);
 /** Public endpoints */
 app.use('/api/public', contactUsRouter);
 
-/** Contact Support Module */
-app.use("/api/contact-support", contactSupportRouter);
 
 /** Feedback Module */
 app.use("/api/feedback", feedbackRouter);

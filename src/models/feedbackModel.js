@@ -6,7 +6,7 @@ const feedbackSchema = new mongoose.Schema({
     ref: 'vendor',
     required: false
   },
-  user_id: {
+  customer_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'customer',
     required: false
@@ -14,7 +14,7 @@ const feedbackSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['vendor', 'user'],
+    enum: ['vendor', 'customer'],
     default: 'vendor'
   },
   mobile_number: {

@@ -3,6 +3,11 @@ const BusinessProfile = require('../models/businessProfileModel');
 const baseUrl = process.env.BASE_URL;
 
 const mapFileUrls = (files = []) => files.map((file) => baseUrl + file);
+const normalizeText = (value = '') => (typeof value === 'string' ? value.trim() : '');
+const mapYoutubeMediaUrls = (media = []) =>
+    (media || []).map((item) => ({
+        youtube_url: item?.youtube_url || ''
+    }));
 
 exports.create = async (req, res) => {
     const { vendor_id, business_profile_id, service_id, events } = req.body;
@@ -33,11 +38,21 @@ exports.create = async (req, res) => {
         const eventPayload = parsedEvents.map((event) => {
             const eventId = event.event_id || event;
             const images = fileMap[`images_${eventId}`] || [];
-            const videos = fileMap[`videos_${eventId}`] || [];
+            const youtubeMediaInput = Array.isArray(event.youtube_media) ? event.youtube_media : [];
+            const youtube_media = youtubeMediaInput
+                .map((media) => {
+                    const youtube_url = normalizeText(media?.youtube_url);
+
+                    if (!youtube_url) return null;
+                    return {
+                        youtube_url
+                    };
+                })
+                .filter(Boolean);
             return {
                 event_id: eventId,
                 images,
-                videos
+                youtube_media
             };
         });
 
@@ -59,7 +74,10 @@ exports.create = async (req, res) => {
                 const existing = portfolio.events.find((event) => event.event_id.toString() === incoming.event_id.toString());
                 if (existing) {
                     existing.images = [...(existing.images || []), ...incoming.images].filter(Boolean);
-                    existing.videos = [...(existing.videos || []), ...incoming.videos].filter(Boolean);
+                    existing.youtube_media = [
+                        ...(existing.youtube_media || []),
+                        ...(incoming.youtube_media || [])
+                    ];
                 } else {
                     portfolio.events.push(incoming);
                 }
@@ -76,7 +94,7 @@ exports.create = async (req, res) => {
                 events: result.events.map((event) => ({
                     ...event.toObject(),
                     images: mapFileUrls(event.images),
-                    videos: mapFileUrls(event.videos)
+                    youtube_media: mapYoutubeMediaUrls(event.youtube_media)
                 }))
             }
         });
@@ -102,7 +120,7 @@ exports.listByVendor = async (req, res) => {
             events: portfolio.events.map((event) => ({
                 ...event.toObject(),
                 images: mapFileUrls(event.images),
-                videos: mapFileUrls(event.videos)
+                youtube_media: mapYoutubeMediaUrls(event.youtube_media)
             }))
         }));
 
@@ -114,13 +132,16 @@ exports.listByVendor = async (req, res) => {
 
 exports.deleteMedia = async (req, res) => {
     const { id } = req.params;
-    const { vendor_id, event_id, type, file } = req.body;
+    const { vendor_id, event_id, type, file, index } = req.body;
 
     try {
-        if (!vendor_id || !event_id || !type || !file) {
+    const requiresFile = type === 'image' || type === 'youtube_media';
+        if (!vendor_id || !event_id || !type || (requiresFile && !file && (index === undefined || index === null))) {
             return res.status(400).json({
                 status: false,
-                message: 'Required fields are missing (vendor_id, event_id, type, file)'
+                message: requiresFile
+                    ? 'Required fields are missing (vendor_id, event_id, type, file)'
+                    : 'Required fields are missing (vendor_id, event_id, type)'
             });
         }
 
@@ -136,11 +157,17 @@ exports.deleteMedia = async (req, res) => {
             return res.status(404).json({ status: false, message: 'Event not found in portfolio' });
         }
 
-        const normalizedFile = file.startsWith(baseUrl) ? file.replace(baseUrl, '') : file;
+    const normalizedFile = (file || '').startsWith(baseUrl) ? file.replace(baseUrl, '') : file;
         if (type === 'image') {
             eventEntry.images = (eventEntry.images || []).filter((item) => item !== normalizedFile);
-        } else if (type === 'video') {
-            eventEntry.videos = (eventEntry.videos || []).filter((item) => item !== normalizedFile);
+        } else if (type === 'youtube_media') {
+            const currentMedia = eventEntry.youtube_media || [];
+            const parsedIndex = Number(index);
+            if (!Number.isNaN(parsedIndex) && parsedIndex >= 0 && parsedIndex < currentMedia.length) {
+                eventEntry.youtube_media = currentMedia.filter((_, i) => i !== parsedIndex);
+            } else {
+                eventEntry.youtube_media = currentMedia.filter((item) => item.youtube_url !== file);
+            }
         } else {
             return res.status(400).json({ status: false, message: 'Invalid media type' });
         }
@@ -155,7 +182,7 @@ exports.deleteMedia = async (req, res) => {
                 events: result.events.map((event) => ({
                     ...event.toObject(),
                     images: mapFileUrls(event.images),
-                    videos: mapFileUrls(event.videos)
+                    youtube_media: mapYoutubeMediaUrls(event.youtube_media)
                 }))
             }
         });

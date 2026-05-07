@@ -73,6 +73,7 @@ router.post('/create', inquiryController.create);
  *         description: Server error
  */
 router.get('/list', inquiryController.list);
+router.get('/customer/list', inquiryController.listByCustomer);
 
 /**
  * @swagger

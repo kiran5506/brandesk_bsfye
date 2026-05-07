@@ -1,5 +1,9 @@
 const CustomerInquiry = require('../models/customerInquiryModel');
 const Customer = require('../models/customerModel');
+const Service = require('../models/serviceModel');
+const BusinessProfile = require('../models/businessProfileModel');
+const BusinessPackage = require('../models/businessPackageModel');
+const LeadPackage = require('../models/leadPackageModel');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
@@ -19,6 +23,7 @@ exports.create = async (req, res) => {
       city_id,
       city,
       service_id,
+  business_profile_id,
   package_id,
   skip_otp,
       event_date,
@@ -102,6 +107,7 @@ exports.create = async (req, res) => {
       city_name: city && (!city_id || !mongoose.Types.ObjectId.isValid(city_id)) ? city : undefined,
       enquiry_date: resolvedEventDate ? new Date(resolvedEventDate) : undefined,
       service_id: service_id && mongoose.Types.ObjectId.isValid(service_id) ? service_id : undefined,
+  business_profile_id: business_profile_id && mongoose.Types.ObjectId.isValid(business_profile_id) ? business_profile_id : undefined,
       package_id: package_id && mongoose.Types.ObjectId.isValid(package_id) ? package_id : undefined,
       OTP: otp,
       is_verified: shouldSkipOtp
@@ -365,5 +371,250 @@ exports.verifyOtp = async (req, res) => {
     } catch (err) {
         res.status(500).send(`An error occurred: ${err.message}`);
     }
+};
+
+/**
+ * Get customer inquiries/callbacks with profile/package enrichment
+ * GET /api/inquiry/customer/list
+ */
+exports.listByCustomer = async (req, res) => {
+  try {
+    const {
+      customer_id,
+      enquiry_type,
+      service_name,
+      enquiry_date,
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    if (!customer_id || !mongoose.Types.ObjectId.isValid(customer_id)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Valid customer_id is required'
+      });
+    }
+
+    const filter = {
+      isActive: true,
+      customer_id: new mongoose.Types.ObjectId(customer_id)
+    };
+
+    if (enquiry_type && ['enquiry', 'callback'].includes(enquiry_type)) {
+      filter.enquiry_type = enquiry_type;
+    }
+
+    if (enquiry_date) {
+      const parsedDate = new Date(enquiry_date);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        const start = new Date(parsedDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(parsedDate);
+        end.setHours(23, 59, 59, 999);
+        filter.enquiry_date = { $gte: start, $lte: end };
+      }
+    }
+
+    if (service_name && String(service_name).trim()) {
+      const matchingServices = await Service.find({
+        isActive: true,
+        serviceName: { $regex: String(service_name).trim(), $options: 'i' }
+      }).select('_id').lean();
+
+      if (!matchingServices.length) {
+        return res.status(200).json({
+          status: true,
+          message: 'Customer inquiries retrieved successfully',
+          data: [],
+          pagination: {
+            total: 0,
+            page: Number(page),
+            limit: Number(limit),
+            pages: 0
+          }
+        });
+      }
+
+      filter.service_id = { $in: matchingServices.map((service) => service._id) };
+    }
+
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.max(1, parseInt(limit, 10) || 20);
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const [inquiries, total] = await Promise.all([
+      CustomerInquiry.find(filter)
+        .populate('service_id', 'serviceName image')
+        .sort({ enquiry_date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(parsedLimit)
+        .lean(),
+      CustomerInquiry.countDocuments(filter)
+    ]);
+
+    if (!inquiries.length) {
+      return res.status(200).json({
+        status: true,
+        message: 'Customer inquiries retrieved successfully',
+        data: [],
+        pagination: {
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          pages: Math.ceil(total / parsedLimit)
+        }
+      });
+    }
+
+    const directProfileIds = inquiries
+      .map((item) => item.business_profile_id)
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const packageIds = inquiries
+      .map((item) => item.package_id)
+      .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const [directProfiles, businessPackages, leadPackages] = await Promise.all([
+      directProfileIds.length
+        ? BusinessProfile.find({ _id: { $in: directProfileIds }, isActive: true })
+            .select('_id businessName profilePicture service_id vendor_id')
+            .lean()
+        : Promise.resolve([]),
+      packageIds.length
+        ? BusinessPackage.find({ _id: { $in: packageIds }, isActive: true })
+            .select('_id packageName coverImage vendor_id service_id')
+            .lean()
+        : Promise.resolve([]),
+      packageIds.length
+        ? LeadPackage.find({ _id: { $in: packageIds }, isActive: true })
+            .select('_id packageName image')
+            .lean()
+        : Promise.resolve([])
+    ]);
+
+    const directProfileMap = new Map(directProfiles.map((item) => [String(item._id), item]));
+    const businessPackageMap = new Map(businessPackages.map((item) => [String(item._id), item]));
+    const leadPackageMap = new Map(leadPackages.map((item) => [String(item._id), item]));
+
+    const profileLookupPairs = businessPackages
+      .map((pkg) => ({
+        vendor_id: pkg.vendor_id ? String(pkg.vendor_id) : '',
+        service_id: pkg.service_id ? String(pkg.service_id) : ''
+      }))
+      .filter((pair) => pair.vendor_id && pair.service_id);
+
+    const uniquePairKeys = [...new Set(profileLookupPairs.map((pair) => `${pair.vendor_id}::${pair.service_id}`))];
+    const profilePairOrQuery = uniquePairKeys.map((key) => {
+      const [vendorId, serviceId] = key.split('::');
+      return {
+        vendor_id: new mongoose.Types.ObjectId(vendorId),
+        service_id: new mongoose.Types.ObjectId(serviceId),
+        isActive: true
+      };
+    });
+
+    const packageMappedProfiles = profilePairOrQuery.length
+      ? await BusinessProfile.find({ $or: profilePairOrQuery })
+          .select('_id businessName profilePicture service_id vendor_id')
+          .lean()
+      : [];
+
+    const packageProfileMap = new Map(
+      packageMappedProfiles.map((profile) => [
+        `${String(profile.vendor_id)}::${String(profile.service_id)}`,
+        profile
+      ])
+    );
+
+    const fallbackServiceIds = inquiries
+      .map((item) => item.service_id?._id || item.service_id)
+      .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    const fallbackProfiles = fallbackServiceIds.length
+      ? await BusinessProfile.find({
+          service_id: { $in: fallbackServiceIds },
+          isActive: true
+        })
+          .sort({ createdAt: -1 })
+          .select('_id businessName profilePicture service_id vendor_id')
+          .lean()
+      : [];
+
+    const fallbackProfileMap = new Map();
+    fallbackProfiles.forEach((profile) => {
+      const key = String(profile.service_id);
+      if (!fallbackProfileMap.has(key)) {
+        fallbackProfileMap.set(key, profile);
+      }
+    });
+
+    const rows = inquiries.map((inquiry) => {
+      const inquiryService = inquiry.service_id || {};
+      const inquiryServiceId = String(inquiryService?._id || inquiry.service_id || '');
+      const inquiryPackageId = String(inquiry.package_id || '');
+      const inquiryBusinessProfileId = String(inquiry.business_profile_id || '');
+
+      const businessPackage = businessPackageMap.get(inquiryPackageId) || null;
+      const leadPackage = leadPackageMap.get(inquiryPackageId) || null;
+
+      let businessProfile = null;
+      if (inquiryBusinessProfileId && directProfileMap.has(inquiryBusinessProfileId)) {
+        businessProfile = directProfileMap.get(inquiryBusinessProfileId);
+      } else if (businessPackage?.vendor_id && businessPackage?.service_id) {
+        const pairKey = `${String(businessPackage.vendor_id)}::${String(businessPackage.service_id)}`;
+        businessProfile = packageProfileMap.get(pairKey) || null;
+      } else if (inquiryServiceId && fallbackProfileMap.has(inquiryServiceId)) {
+        businessProfile = fallbackProfileMap.get(inquiryServiceId);
+      }
+
+      return {
+        _id: inquiry._id,
+        customer_id: inquiry.customer_id,
+        enquiry_type: inquiry.enquiry_type,
+        city_id: inquiry.city_id,
+        city_name: inquiry.city_name,
+        enquiry_date: inquiry.enquiry_date || inquiry.createdAt,
+        is_verified: inquiry.is_verified,
+        createdAt: inquiry.createdAt,
+        service: {
+          _id: inquiryService?._id || null,
+          name: inquiryService?.serviceName || 'Service',
+          image: inquiryService?.image || ''
+        },
+        business_profile: businessProfile
+          ? {
+              _id: businessProfile._id,
+              businessName: businessProfile.businessName,
+              profilePicture: businessProfile.profilePicture || ''
+            }
+          : null,
+        package: inquiry.enquiry_type === 'callback'
+          ? {
+              _id: businessPackage?._id || leadPackage?._id || null,
+              packageName: businessPackage?.packageName || leadPackage?.packageName || '',
+              image: businessPackage?.coverImage || leadPackage?.image || ''
+            }
+          : null
+      };
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: 'Customer inquiries retrieved successfully',
+      data: rows,
+      pagination: {
+        total,
+        page: parsedPage,
+        limit: parsedLimit,
+        pages: Math.ceil(total / parsedLimit)
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: false,
+      message: `An error occurred: ${err.message}`
+    });
+  }
 };
 

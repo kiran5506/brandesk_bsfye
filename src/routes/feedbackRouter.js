@@ -22,12 +22,12 @@ const feedbackController = require('../controllers/feedbackController');
  *               vendor_id:
  *                 type: string
  *                 description: Vendor ID (required if type is vendor)
- *               user_id:
+ *               customer_id:
  *                 type: string
- *                 description: User/Customer ID (required if type is user)
+ *                 description: Customer ID (required if type is customer)
  *               type:
  *                 type: string
- *                 enum: [vendor, user]
+ *                 enum: [vendor, customer]
  *                 description: Type of feedback provider
  *               mobile_number:
  *                 type: string
@@ -70,7 +70,7 @@ router.post('/create', feedbackController.create);
  *         name: type
  *         schema:
  *           type: string
- *           enum: [vendor, user]
+ *           enum: [vendor, customer]
  *         description: Filter by type
  *     responses:
  *       200:
@@ -193,17 +193,17 @@ router.get('/vendor/:vendor_id', feedbackController.findByVendorId);
 
 /**
  * @swagger
- * /api/feedback/user/{user_id}:
+ * /api/feedback/customer/{customer_id}:
  *   get:
- *     summary: Get feedback by user ID
+ *     summary: Get feedback by customer ID
  *     tags: [Feedback]
  *     parameters:
  *       - in: path
- *         name: user_id
+ *         name: customer_id
  *         required: true
  *         schema:
  *           type: string
- *         description: User ID
+ *         description: Customer ID
  *       - in: query
  *         name: page
  *         schema:
@@ -216,10 +216,11 @@ router.get('/vendor/:vendor_id', feedbackController.findByVendorId);
  *         description: Number of items per page
  *     responses:
  *       200:
- *         description: User feedback retrieved successfully
+ *         description: Customer feedback retrieved successfully
  *       404:
  *         description: No feedback found
  */
+router.get('/customer/:customer_id', feedbackController.findByCustomerId);
 router.get('/user/:user_id', feedbackController.findByUserId);
 
 module.exports = router;

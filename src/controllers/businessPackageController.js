@@ -1,4 +1,6 @@
 const BusinessPackage = require('../models/businessPackageModel');
+const City = require('../models/cityModel');
+const mongoose = require('mongoose');
 const baseUrl = process.env.BASE_URL || '';
 
 const parseCityPricing = (value) => {
@@ -13,15 +15,36 @@ const parseCityPricing = (value) => {
     }
 };
 
-const normalizePricing = (pricing = []) => {
-    return pricing
-        .filter((item) => item && item.city)
-        .map((item) => ({
-            city: item.city,
-            marketPrice: Number(item.marketPrice || 0),
-            offerPrice: Number(item.offerPrice || 0),
-            discount: Number(item.discount || 0)
-        }));
+const resolveCityId = async (cityInput) => {
+    if (!cityInput) return null;
+    const value = String(cityInput).trim();
+    if (!value) return null;
+
+    if (mongoose.Types.ObjectId.isValid(value)) {
+        const cityDoc = await City.findById(value).select('_id');
+        return cityDoc ? cityDoc._id.toString() : null;
+    }
+
+    const cityDoc = await City.findOne({ cityName: { $regex: `^${value}$`, $options: 'i' } }).select('_id');
+    return cityDoc ? cityDoc._id.toString() : null;
+};
+
+const normalizePricing = async (pricing = []) => {
+    const normalized = await Promise.all(
+        pricing.map(async (item) => {
+            const resolvedCityId = await resolveCityId(item?.city_id || item?.city);
+            if (!resolvedCityId) return null;
+
+            return {
+                city_id: resolvedCityId,
+                marketPrice: Number(item.marketPrice || 0),
+                offerPrice: Number(item.offerPrice || 0),
+                discount: Number(item.discount || 0)
+            };
+        })
+    );
+
+    return normalized.filter(Boolean);
 };
 
 const mapPackageResponse = (pkg) => {
@@ -30,6 +53,13 @@ const mapPackageResponse = (pkg) => {
     if (data.coverImage) {
         data.coverImage = `${baseUrl}${data.coverImage}`;
     }
+    data.cityPricing = Array.isArray(data.cityPricing)
+        ? data.cityPricing.map((item) => ({
+            ...item,
+            city_id: item?.city_id?._id || item?.city_id || '',
+            city_name: item?.city_id?.cityName || item?.city_name || ''
+        }))
+        : [];
     return data;
 };
 
@@ -47,7 +77,7 @@ exports.create = async (req, res) => {
             coverImage = files.coverImage[0].key;
         }
 
-        const cityPricing = normalizePricing(parseCityPricing(req.body.cityPricing));
+    const cityPricing = await normalizePricing(parseCityPricing(req.body.cityPricing));
 
         const newPackage = new BusinessPackage({
             vendor_id,
@@ -82,7 +112,7 @@ exports.edit = async (req, res) => {
             coverImage = files.coverImage[0].key;
         }
 
-        const cityPricing = normalizePricing(parseCityPricing(req.body.cityPricing));
+    const cityPricing = await normalizePricing(parseCityPricing(req.body.cityPricing));
 
         const updatedPackage = await BusinessPackage.findByIdAndUpdate(
             id,
@@ -116,6 +146,7 @@ exports.list = async (req, res) => {
 
         const packages = await BusinessPackage.find(filter)
             .populate('event_id', 'eventName')
+            .populate('cityPricing.city_id', 'cityName')
             .sort({ createdAt: -1 });
 
         if (!packages || packages.length === 0) {
@@ -137,7 +168,9 @@ exports.listByVendor = async (req, res) => {
 exports.findById = async (req, res) => {
     const { id } = req.params;
     try {
-        const businessPackage = await BusinessPackage.findById(id).populate('event_id', 'eventName');
+        const businessPackage = await BusinessPackage.findById(id)
+            .populate('event_id', 'eventName')
+            .populate('cityPricing.city_id', 'cityName');
         if (!businessPackage) {
             return res.status(404).json({ status: false, message: 'Business package not found.' });
         }

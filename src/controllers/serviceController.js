@@ -791,4 +791,305 @@ exports.topSuggestions = async (req, res) => {
     }
 };
 
+exports.similarVendors = async (req, res) => {
+    const { business_profile_id: businessProfileId } = req.params;
+    const MAX_PROFILES = 14;
+    const HALF_LIMIT = Math.floor(MAX_PROFILES / 2);
+
+    try {
+        if (!mongoose.Types.ObjectId.isValid(businessProfileId)) {
+            return res.status(400).json({ status: false, message: 'Invalid business_profile_id' });
+        }
+
+        const currentBusinessProfile = await BusinessProfile.findById(businessProfileId)
+            .select('_id service_id vendor_id');
+
+        if (!currentBusinessProfile) {
+            return res.status(404).json({ status: false, message: 'Business profile not found' });
+        }
+
+        const currentVendorId = currentBusinessProfile?.vendor_id;
+        if (!currentVendorId) {
+            return res.status(200).json({
+                status: true,
+                message: 'Similar vendors list.',
+                data: {
+                    business_profiles: []
+                }
+            });
+        }
+
+        const currentVendor = await Vendor.findById(currentVendorId)
+            .select('_id approved_date profile_status is_profile_verified isActive');
+
+        if (!currentVendor || !currentVendor?.approved_date) {
+            return res.status(200).json({
+                status: true,
+                message: 'Similar vendors list.',
+                data: {
+                    business_profiles: []
+                }
+            });
+        }
+
+        const approvedDate = new Date(currentVendor.approved_date);
+        const vendorBaseFilter = {
+            _id: { $ne: currentVendor._id },
+            isActive: true,
+            is_profile_verified: true,
+            profile_status: 'accepted',
+            approved_date: { $exists: true, $ne: null }
+        };
+
+        const previousVendors = await Vendor.find({
+            ...vendorBaseFilter,
+            approved_date: { $lt: approvedDate }
+        })
+            .select('_id approved_date')
+            .sort({ approved_date: -1 })
+            .limit(HALF_LIMIT);
+
+        const nextVendors = await Vendor.find({
+            ...vendorBaseFilter,
+            approved_date: { $gt: approvedDate }
+        })
+            .select('_id approved_date')
+            .sort({ approved_date: 1 })
+            .limit(HALF_LIMIT);
+
+        const selectedVendorIds = [];
+        const selectedVendorIdSet = new Set();
+
+        [...previousVendors, ...nextVendors].forEach((vendorDoc) => {
+            const vendorId = vendorDoc?._id?.toString?.();
+            if (!vendorId || selectedVendorIdSet.has(vendorId)) return;
+            selectedVendorIdSet.add(vendorId);
+            selectedVendorIds.push(vendorDoc._id);
+        });
+
+        if (selectedVendorIds.length < MAX_PROFILES) {
+            const fillVendors = await Vendor.find({
+                ...vendorBaseFilter,
+                _id: {
+                    $nin: [
+                        currentVendor._id,
+                        ...selectedVendorIds
+                    ]
+                }
+            })
+                .select('_id approved_date')
+                .sort({ approved_date: -1 })
+                .limit(MAX_PROFILES - selectedVendorIds.length);
+
+            fillVendors.forEach((vendorDoc) => {
+                const vendorId = vendorDoc?._id?.toString?.();
+                if (!vendorId || selectedVendorIdSet.has(vendorId)) return;
+                selectedVendorIdSet.add(vendorId);
+                selectedVendorIds.push(vendorDoc._id);
+            });
+        }
+
+        if (!selectedVendorIds.length) {
+            return res.status(200).json({
+                status: true,
+                message: 'Similar vendors list.',
+                data: {
+                    business_profiles: []
+                }
+            });
+        }
+
+        const candidateProfiles = await BusinessProfile.find({
+            service_id: currentBusinessProfile.service_id,
+            vendor_id: { $in: selectedVendorIds },
+            isActive: true,
+            _id: { $ne: currentBusinessProfile._id }
+        })
+            .populate('vendor_id', 'name email mobile_number approved_date')
+            .populate('service_id', 'serviceName serviceType')
+            .sort({ createdAt: -1 });
+
+        if (!candidateProfiles.length) {
+            return res.status(200).json({
+                status: true,
+                message: 'Similar vendors list.',
+                data: {
+                    business_profiles: []
+                }
+            });
+        }
+
+        const candidateProfileIds = candidateProfiles.map((profile) => profile._id);
+
+        const cityIds = [...new Set(
+            candidateProfiles
+                .map((profile) => profile?.address?.city)
+                .filter(Boolean)
+                .map((city) => city.toString())
+                .filter((city) => mongoose.Types.ObjectId.isValid(city))
+        )];
+
+        const cityDocs = cityIds.length
+            ? await City.find({ _id: { $in: cityIds } }).select('_id cityName')
+            : [];
+
+        const cityMap = cityDocs.reduce((acc, cityDoc) => {
+            acc[cityDoc._id.toString()] = cityDoc.cityName;
+            return acc;
+        }, {});
+
+        const ratings = await Review.aggregate([
+            {
+                $match: {
+                    business_profile_id: { $in: candidateProfileIds },
+                    isActive: true,
+                    status: { $ne: 'rejected' }
+                }
+            },
+            {
+                $group: {
+                    _id: '$business_profile_id',
+                    averageRating: { $avg: '$rating' },
+                    reviewCount: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const ratingsMap = ratings.reduce((acc, item) => {
+            const key = item?._id?.toString?.();
+            if (!key) return acc;
+            acc[key] = {
+                averageRating: Number(item.averageRating || 0),
+                reviewCount: Number(item.reviewCount || 0)
+            };
+            return acc;
+        }, {});
+
+        const packages = await BusinessPackage.find({
+            business_profile_id: { $in: candidateProfileIds }
+        }).select('business_profile_id cityPricing');
+
+        const lowestByBusinessProfile = packages.reduce((acc, pkg) => {
+            const profileId = pkg?.business_profile_id?.toString?.();
+            if (!profileId) return acc;
+
+            const pricingList = Array.isArray(pkg?.cityPricing) ? pkg.cityPricing : [];
+            pricingList.forEach((pricing) => {
+                const offer = Number(pricing?.offerPrice || 0);
+                const market = Number(pricing?.marketPrice || 0);
+                const discount = Number(pricing?.discount || 0);
+                if (!offer) return;
+                if (!acc[profileId] || offer < acc[profileId].offerPrice) {
+                    acc[profileId] = {
+                        offerPrice: offer,
+                        marketPrice: market,
+                        discount
+                    };
+                }
+            });
+
+            return acc;
+        }, {});
+
+        const normalizedProfiles = candidateProfiles.map((profile) => {
+            const profileId = profile?._id?.toString?.() || '';
+            const cityIdValue = profile?.address?.city ? profile.address.city.toString() : '';
+            const cityName = cityIdValue ? (cityMap[cityIdValue] || profile?.address?.city) : profile?.address?.city;
+            const lowestPricing = lowestByBusinessProfile[profileId] || null;
+            const ratingData = ratingsMap[profileId] || null;
+
+            return {
+                _id: profile._id,
+                vendor_id: profile.vendor_id,
+                service_id: profile.service_id,
+                serviceName: profile.service_id?.serviceName || '',
+                serviceType: profile.service_id?.serviceType || '',
+                businessName: profile.businessName,
+                profilePicture: profile.profilePicture ? baseUrl + profile.profilePicture : '',
+                address: {
+                    ...(profile.address || {}),
+                    city: cityName || '',
+                    city_id: cityIdValue || ''
+                },
+                skills: profile.skills,
+                languages: profile.languages,
+                documents: {
+                    aadharFront: profile.documents?.aadharFront ? baseUrl + profile.documents.aadharFront : '',
+                    aadharBack: profile.documents?.aadharBack ? baseUrl + profile.documents.aadharBack : '',
+                    registrationCopy: profile.documents?.registrationCopy ? baseUrl + profile.documents.registrationCopy : '',
+                    gst: profile.documents?.gst ? baseUrl + profile.documents.gst : ''
+                },
+                about_us: profile.about_us || '',
+                communication_address: profile.communication_address || '',
+                cover_images: profile.cover_images?.map((img) => baseUrl + img) || [],
+                isActive: profile.isActive,
+                createdAt: profile.createdAt,
+                updatedAt: profile.updatedAt,
+                lowestOfferPrice: lowestPricing?.offerPrice || 0,
+                lowestMarketPrice: lowestPricing?.marketPrice || 0,
+                lowestDiscount: lowestPricing?.discount || 0,
+                averageRating: Number(ratingData?.averageRating || 0),
+                reviewCount: Number(ratingData?.reviewCount || 0)
+            };
+        });
+
+        const bestByVendor = normalizedProfiles.reduce((acc, profile) => {
+            const vendorId = (profile?.vendor_id?._id || profile?.vendor_id || '').toString();
+            if (!vendorId) return acc;
+
+            const currentBest = acc[vendorId];
+            if (!currentBest) {
+                acc[vendorId] = profile;
+                return acc;
+            }
+
+            const ratingDiff = Number(profile.averageRating || 0) - Number(currentBest.averageRating || 0);
+            if (ratingDiff > 0) {
+                acc[vendorId] = profile;
+                return acc;
+            }
+
+            if (ratingDiff === 0) {
+                const reviewDiff = Number(profile.reviewCount || 0) - Number(currentBest.reviewCount || 0);
+                if (reviewDiff > 0) {
+                    acc[vendorId] = profile;
+                    return acc;
+                }
+
+                if (reviewDiff === 0) {
+                    const profileCreatedAt = new Date(profile?.createdAt || 0).getTime();
+                    const bestCreatedAt = new Date(currentBest?.createdAt || 0).getTime();
+                    if (profileCreatedAt > bestCreatedAt) {
+                        acc[vendorId] = profile;
+                    }
+                }
+            }
+
+            return acc;
+        }, {});
+
+        const similarVendorProfiles = Object.values(bestByVendor)
+            .sort((a, b) => {
+                const ratingDiff = Number(b?.averageRating || 0) - Number(a?.averageRating || 0);
+                if (ratingDiff !== 0) return ratingDiff;
+
+                const reviewDiff = Number(b?.reviewCount || 0) - Number(a?.reviewCount || 0);
+                if (reviewDiff !== 0) return reviewDiff;
+
+                return new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime();
+            })
+            .slice(0, MAX_PROFILES);
+
+        res.status(200).json({
+            status: true,
+            message: 'Similar vendors list.',
+            data: {
+                business_profiles: similarVendorProfiles
+            }
+        });
+    } catch (err) {
+        res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};
+
 

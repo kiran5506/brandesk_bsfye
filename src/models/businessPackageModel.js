@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 
 const cityPricingSchema = new mongoose.Schema({
-    city: {
-        type: String,
+    city_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'City',
         required: true
     },
     marketPrice: {

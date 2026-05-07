@@ -27,8 +27,15 @@ const businessPortfolioSchema = new mongoose.Schema({
                 type: [String],
                 default: []
             },
-            videos: {
-                type: [String],
+            youtube_media: {
+                type: [
+                    {
+                        youtube_url: {
+                            type: String,
+                            default: ''
+                        }
+                    }
+                ],
                 default: []
             }
         }

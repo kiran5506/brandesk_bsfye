@@ -285,6 +285,7 @@ exports.listReplacementRequests = async (req, res) => {
       const vendor = assignment.vendor_id || request.vendor_id || {};
 
       return {
+        _id: request._id,
         request_id: request._id,
         date: request.createdAt || null,
         customer_name: customer.name || 'N/A',

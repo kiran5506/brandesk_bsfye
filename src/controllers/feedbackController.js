@@ -6,7 +6,9 @@ const Feedback = require('../models/feedbackModel');
  */
 exports.create = async (req, res) => {
   try {
-    const { vendor_id, user_id, type, mobile_number, feedback } = req.body;
+    const { vendor_id, customer_id, user_id, type, mobile_number, feedback } = req.body;
+    const resolvedCustomerId = customer_id || user_id;
+    const normalizedType = type === 'user' ? 'customer' : type;
 
     // Validation
     if (!mobile_number || !feedback || !type) {
@@ -16,11 +18,11 @@ exports.create = async (req, res) => {
       });
     }
 
-    // Validate that either vendor_id or user_id is provided
-    if (!vendor_id && !user_id) {
+    // Validate that either vendor_id or customer_id is provided
+    if (!vendor_id && !resolvedCustomerId) {
       return res.status(400).json({
         status: false,
-        message: 'Either vendor_id or user_id must be provided'
+        message: 'Either vendor_id or customer_id must be provided'
       });
     }
 
@@ -33,17 +35,31 @@ exports.create = async (req, res) => {
     }
 
     // Validate type
-    if (!['vendor', 'user'].includes(type)) {
+    if (!['vendor', 'customer'].includes(normalizedType)) {
       return res.status(400).json({
         status: false,
-        message: 'Type must be either "vendor" or "user"'
+        message: 'Type must be either "vendor" or "customer"'
+      });
+    }
+
+    if (normalizedType === 'vendor' && !vendor_id) {
+      return res.status(400).json({
+        status: false,
+        message: 'vendor_id is required for vendor feedback'
+      });
+    }
+
+    if (normalizedType === 'customer' && !resolvedCustomerId) {
+      return res.status(400).json({
+        status: false,
+        message: 'customer_id is required for customer feedback'
       });
     }
 
     const newFeedback = new Feedback({
-      vendor_id: type === 'vendor' ? vendor_id : null,
-      user_id: type === 'user' ? user_id : null,
-      type,
+      vendor_id: normalizedType === 'vendor' ? vendor_id : null,
+      customer_id: normalizedType === 'customer' ? resolvedCustomerId : null,
+      type: normalizedType,
       mobile_number,
       feedback,
       status: 0  // Default status is 0 (pending)
@@ -78,7 +94,7 @@ exports.list = async (req, res) => {
     if (status !== undefined) filter.status = parseInt(status);
     if (type !== undefined) {
       if (type === 'customer' || type === 'user') {
-        filter.type = { $in: ['customer', 'user'] };
+        filter.type = 'customer';
       } else {
         filter.type = type;
       }
@@ -86,7 +102,7 @@ exports.list = async (req, res) => {
 
     const feedbacks = await Feedback.find(filter)
       .populate('vendor_id', 'name mobile_number email')
-      .populate('user_id', 'name mobile_number email')
+      .populate('customer_id', 'name mobile_number email')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
@@ -137,7 +153,7 @@ exports.findById = async (req, res) => {
 
     const feedback = await Feedback.findById(id)
       .populate('vendor_id', 'name mobile_number email')
-      .populate('user_id', 'name mobile_number email');
+      .populate('customer_id', 'name mobile_number email');
 
     if (!feedback) {
       return res.status(404).json({
@@ -203,7 +219,7 @@ exports.edit = async (req, res) => {
       { new: true, runValidators: true }
     )
       .populate('vendor_id', 'name mobile_number email')
-      .populate('user_id', 'name mobile_number email');
+      .populate('customer_id', 'name mobile_number email');
 
     if (!updatedFeedback) {
       return res.status(404).json({
@@ -286,7 +302,7 @@ exports.findByVendorId = async (req, res) => {
 
     const feedbacks = await Feedback.find({ vendor_id, isActive: true })
       .populate('vendor_id', 'name mobile_number email')
-      .populate('user_id', 'name mobile_number email')
+      .populate('customer_id', 'name mobile_number email')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
@@ -320,41 +336,51 @@ exports.findByVendorId = async (req, res) => {
 };
 
 /**
- * Get feedback by user ID
- * GET /api/feedback/user/:user_id
+ * Get feedback by customer ID
+ * GET /api/feedback/customer/:customer_id
  */
-exports.findByUserId = async (req, res) => {
+exports.findByCustomerId = async (req, res) => {
   try {
-    const { user_id } = req.params;
+    const { customer_id, user_id } = req.params;
+    const resolvedCustomerId = customer_id || user_id;
     const { page = 1, limit = 10 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    if (!user_id) {
+    if (!resolvedCustomerId) {
       return res.status(400).json({
         status: false,
-        message: 'User ID is required'
+        message: 'Customer ID is required'
       });
     }
 
-    const feedbacks = await Feedback.find({ user_id, isActive: true })
+    const customerFilter = {
+      isActive: true,
+      type: 'customer',
+      $or: [
+        { customer_id: resolvedCustomerId },
+        { user_id: resolvedCustomerId }
+      ]
+    };
+
+    const feedbacks = await Feedback.find(customerFilter)
       .populate('vendor_id', 'name mobile_number email')
-      .populate('user_id', 'name mobile_number email')
+      .populate('customer_id', 'name mobile_number email')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
-    const total = await Feedback.countDocuments({ user_id, isActive: true });
+    const total = await Feedback.countDocuments(customerFilter);
 
     if (!feedbacks || feedbacks.length === 0) {
       return res.status(404).json({
         status: false,
-        message: 'No feedback found for this user'
+        message: 'No feedback found for this customer'
       });
     }
 
     res.status(200).json({
       status: true,
-      message: 'User feedback retrieved successfully',
+      message: 'Customer feedback retrieved successfully',
       data: feedbacks,
       pagination: {
         page: parseInt(page),
@@ -370,3 +396,6 @@ exports.findByUserId = async (req, res) => {
     });
   }
 };
+
+// Backward compatibility alias for old user route
+exports.findByUserId = exports.findByCustomerId;

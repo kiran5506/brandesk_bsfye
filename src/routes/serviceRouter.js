@@ -39,6 +39,7 @@ router.get('/search', serviceController.search);
  */
 router.get('/findById/:id', serviceController.findById);
 router.get('/topSuggestions/:business_profile_id', serviceController.topSuggestions);
+router.get('/similarVendors/:business_profile_id', serviceController.similarVendors);
 
 /**
  * @swagger

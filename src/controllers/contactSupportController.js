@@ -7,12 +7,13 @@ const ContactSupport = require('../models/contactSupportModel');
 exports.create = async (req, res) => {
   try {
     const { mobile_number, issue, type } = req.body;
+    const normalizedType = type === 'user' ? 'customer' : (type || 'customer');
 
     // Validation
-    if (!mobile_number || !issue || !type) {
+    if (!mobile_number || !issue) {
       return res.status(400).json({
         status: false,
-        message: 'Mobile number, issue, and type are required'
+        message: 'Mobile number and issue are required'
       });
     }
 
@@ -25,7 +26,7 @@ exports.create = async (req, res) => {
     }
 
     // Validate type
-    if (!['customer', 'vendor'].includes(type)) {
+    if (!['customer', 'vendor'].includes(normalizedType)) {
       return res.status(400).json({
         status: false,
         message: 'Type must be either "customer" or "vendor"'
@@ -35,7 +36,7 @@ exports.create = async (req, res) => {
     const newContactSupport = new ContactSupport({
       mobile_number,
       issue,
-      type,
+      type: normalizedType,
       status: 0  // Default status is 0 (pending)
     });
 

@@ -7,7 +7,15 @@ const City = require('../models/cityModel');
 const mongoose = require('mongoose');
 const baseUrl = process.env.BASE_URL;
 
-const mapFileUrls = (files = []) => files.map((file) => baseUrl + file);
+const toAssetUrl = (file = '') => {
+    const value = String(file || '').trim();
+    if (!value) return '';
+    if (/^https?:\/\//i.test(value)) return value;
+    if (!baseUrl) return value;
+    return `${baseUrl}${value}`;
+};
+
+const mapFileUrls = (files = []) => files.map((file) => toAssetUrl(file)).filter(Boolean);
 
 const resolveCityId = async (city) => {
     if (!city) return null;
@@ -465,7 +473,9 @@ exports.detailsById = async (req, res) => {
                 events: portfolio.events.map((event) => ({
                     ...event.toObject(),
                     images: mapFileUrls(event.images),
-                    videos: mapFileUrls(event.videos)
+                    youtube_media: (event.youtube_media || []).map((item) => ({
+                        youtube_url: item?.youtube_url || ''
+                    }))
                 }))
             }
             : null;
