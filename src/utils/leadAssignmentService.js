@@ -1,4 +1,5 @@
 const BusinessProfile = require('../models/businessProfileModel');
+const BusinessPackage = require('../models/businessPackageModel');
 const Vendor = require('../models/vendorModule');
 const Review = require('../models/reviewModel');
 const Payment = require('../models/paymentModel');
@@ -50,6 +51,47 @@ const sortVendorsForLead = (a, b) => {
 
 const assignVendorsToInquiry = async (inquiry, { limit = 5 } = {}) => {
   const cityName = await getCityName(inquiry);
+
+  if (inquiry.package_id) {
+    const pkg = await BusinessPackage.findById(inquiry.package_id).lean();
+    const vendorId = pkg?.vendor_id;
+
+    if (vendorId) {
+      let vendor = await Vendor.findOne({
+        _id: vendorId,
+        isActive: true,
+        profile_status: 'accepted'
+      }).lean();
+
+      if (!vendor) {
+        vendor = await Vendor.findOne({ _id: vendorId, isActive: true }).lean();
+      }
+
+      if (!vendor) return [];
+
+      const now = new Date();
+      const assignment = {
+        inquiry_id: inquiry._id,
+        vendor_id: vendor._id,
+        customer_id: inquiry.customer_id,
+        service_id: inquiry.service_id,
+        city_name: cityName,
+        assigned_at: now,
+        last_assigned_at: now,
+        status: 'assigned',
+        credits_deducted: false,
+        isActive: true
+      };
+
+      try {
+        await LeadAssignment.insertMany([assignment], { ordered: false });
+      } catch (err) {
+        // Ignore duplicate assignment errors for idempotency
+      }
+
+      return [assignment];
+    }
+  }
   const profileQuery = { isActive: true };
 
   if (inquiry.service_id) {

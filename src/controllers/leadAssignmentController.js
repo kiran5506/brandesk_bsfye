@@ -379,6 +379,29 @@ exports.getAdminLeadDetails = async (req, res) => {
   }
 };
 
+exports.listByInquiry = async (req, res) => {
+  try {
+    const { inquiryId } = req.params;
+
+    if (!inquiryId) {
+      return res.status(400).json({ status: false, message: 'inquiryId is required' });
+    }
+
+    const assignments = await LeadAssignment.find({ inquiry_id: inquiryId, isActive: true })
+      .populate('vendor_id', 'name mobile_number email')
+      .sort({ assigned_at: -1 })
+      .lean();
+
+    return res.status(200).json({
+      status: true,
+      message: 'Inquiry lead assignments retrieved successfully',
+      data: assignments
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: `An error occurred: ${err.message}` });
+  }
+};
+
 exports.markViewed = async (req, res) => {
   try {
     const { assignment_id, vendor_id } = req.body;

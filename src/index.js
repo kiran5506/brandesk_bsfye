@@ -50,21 +50,33 @@ const wishlistRouter = require('./routes/wishlistRouter');
 const leadAssignmentRouter = require('./routes/leadAssignmentRouter');
 
 const app = express();
-// Default to 4000 when PORT is not provided by the environment
-const PORT = process.env.PORT || 4000;
+// Default to 5004 when PORT is not provided by the environment
+const PORT = process.env.PORT || 5004;
 
 app.use((req, res, next) => {
     next();
 });
 
-const allowedOrigins = ['https://www.bsfye.com', 'https://bsfye.com', 'http://localhost:3000'];
+const defaultAllowedOrigins = ['https://www.bsfye.com', 'https://bsfye.com', 'http://localhost:3000'];
+const envAllowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedOriginPatterns = [/^https:\/\/(.*\.)?bsfye\.com$/, /^http:\/\/localhost:\d+$/];
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (defaultAllowedOrigins.includes(origin)) return true;
+  if (envAllowedOrigins.includes(origin)) return true;
+  return allowedOriginPatterns.some((pattern) => pattern.test(origin));
+};
+
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests from the allowed domains
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true); // No error, allow request
+        if (isOriginAllowed(origin)) {
+            callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS')); // Block other origins
+            callback(new Error(`Not allowed by CORS: ${origin}`));
         }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

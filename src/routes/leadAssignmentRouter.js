@@ -4,6 +4,7 @@ const leadAssignmentController = require('../controllers/leadAssignmentControlle
 const router = express.Router();
 
 router.get('/vendor/:vendorId', leadAssignmentController.listByVendor);
+router.get('/inquiry/:inquiryId', leadAssignmentController.listByInquiry);
 router.get('/admin/leads', leadAssignmentController.listAdminLeads);
 router.get('/admin/leads/:inquiryId', leadAssignmentController.getAdminLeadDetails);
 router.get('/admin/replacements', leadAssignmentController.listReplacementRequests);

@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const { assignVendorsToInquiry } = require('../utils/leadAssignmentService');
+const { sendEmail } = require('../utils/mail');
 
 /**
  * Create a new customer inquiry
@@ -18,6 +19,8 @@ exports.create = async (req, res) => {
     const {
       name,
       customer_name,
+      email,
+      customer_email,
       mobile_number,
       customer_mobile,
       city_id,
@@ -32,12 +35,21 @@ exports.create = async (req, res) => {
     } = req.body;
 
     const resolvedName = name || customer_name;
+  const resolvedEmail = email || customer_email;
     const resolvedMobile = mobile_number || customer_mobile;
     const resolvedEventDate = event_date || enquiry_date;
     const resolvedEnquiryType = enquiry_type || 'callback';
+    const hasPackageId = package_id !== undefined && package_id !== null && String(package_id).trim() !== '';
+    if (hasPackageId && !mongoose.Types.ObjectId.isValid(package_id)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Invalid package id'
+      });
+    }
+    const resolvedPackageId = hasPackageId ? new mongoose.Types.ObjectId(package_id) : null;
 
     // Validation
-    if (!resolvedName || !resolvedMobile || !resolvedEventDate) {
+    if (!resolvedName || !resolvedMobile || !resolvedEventDate || !resolvedEmail) {
       return res.status(400).json({
         status: false,
         message: 'All fields are required'
@@ -59,9 +71,25 @@ exports.create = async (req, res) => {
       });
     }
 
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resolvedEmail)) {
+      return res.status(400).json({
+        status: false,
+        message: 'Email must be a valid address'
+      });
+    }
+
     let customer = await Customer.findOne({ mobile_number: resolvedMobile });
 
     if (!customer) {
+      if (resolvedEmail) {
+        const existingEmail = await Customer.findOne({ email: resolvedEmail });
+        if (existingEmail) {
+          return res.status(400).json({
+            status: false,
+            message: 'Email already exists'
+          });
+        }
+      }
       // const randomPassword = crypto
       //   .randomBytes(6)
       //   .toString('base64')
@@ -69,7 +97,7 @@ exports.create = async (req, res) => {
       //   .slice(0, 10);
       const randomPassword = '123456';
       const hashedPassword = await bcrypt.hash(String(randomPassword), 10);
-      const generatedEmail = `${resolvedMobile}@bsfye.com`;
+      const generatedEmail = resolvedEmail || `${resolvedMobile}@bsfye.com`;
 
       const newCustomer = new Customer({
         name: resolvedName,
@@ -81,6 +109,16 @@ exports.create = async (req, res) => {
       });
 
       customer = await newCustomer.save();
+    } else if (resolvedEmail && customer.email !== resolvedEmail) {
+      const existingEmail = await Customer.findOne({ email: resolvedEmail, _id: { $ne: customer._id } });
+      if (existingEmail) {
+        return res.status(400).json({
+          status: false,
+          message: 'Email already exists'
+        });
+      }
+      customer.email = resolvedEmail;
+      await customer.save();
     }
 
     const inquiryFilter = {
@@ -89,12 +127,24 @@ exports.create = async (req, res) => {
       isActive: true
     };
 
+    let duplicateScope = 'package';
+    if (resolvedPackageId) {
+      inquiryFilter.package_id = resolvedPackageId;
+      duplicateScope = 'package';
+    } else if (business_profile_id && mongoose.Types.ObjectId.isValid(business_profile_id)) {
+      inquiryFilter.business_profile_id = business_profile_id;
+      duplicateScope = 'business profile';
+    } else if (service_id && mongoose.Types.ObjectId.isValid(service_id)) {
+      inquiryFilter.service_id = service_id;
+      duplicateScope = 'service';
+    }
+
     const existingInquiry = await CustomerInquiry.findOne(inquiryFilter);
 
     if (existingInquiry) {
       return res.status(400).json({
         status: false,
-        message: 'An inquiry already exists for this mobile number'
+        message: `An inquiry already exists for this ${duplicateScope}`
       });
     }
 
@@ -108,14 +158,28 @@ exports.create = async (req, res) => {
       enquiry_date: resolvedEventDate ? new Date(resolvedEventDate) : undefined,
       service_id: service_id && mongoose.Types.ObjectId.isValid(service_id) ? service_id : undefined,
   business_profile_id: business_profile_id && mongoose.Types.ObjectId.isValid(business_profile_id) ? business_profile_id : undefined,
-      package_id: package_id && mongoose.Types.ObjectId.isValid(package_id) ? package_id : undefined,
+  package_id: resolvedPackageId || undefined,
       OTP: otp,
       is_verified: shouldSkipOtp
     });
 
     const result = await newInquiry.save();
 
-  await assignVendorsToInquiry(result, { limit: 5 });
+    if (!shouldSkipOtp && otp && resolvedEmail) {
+      const emailSubject = 'Your OTP Code - Brandesk';
+      const emailText = `Your OTP code is ${otp}. It is valid for a short time.`;
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
+          <p>Hello ${resolvedName || 'Customer'},</p>
+          <p>Your OTP code is <strong>${otp}</strong>.</p>
+          <p>This code is valid for a short time. Please do not share it with anyone.</p>
+          <p>Thanks,<br/>Brandesk Team</p>
+        </div>
+      `;
+      await sendEmail(resolvedEmail, emailSubject, emailText, emailHtml);
+    }
+
+    await assignVendorsToInquiry(result, { limit: 5 });
 
     res.status(201).json({
       status: true,
