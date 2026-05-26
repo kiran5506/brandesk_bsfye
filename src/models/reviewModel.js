@@ -29,12 +29,12 @@ const reviewSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: ['pending', 'accepted', 'rejected'],
-        default: 'pending'
+        default: 'accepted'
     },
     review_type: {
         type: String,
         enum: ['pending', 'accepted', 'rejected'],
-        default: 'pending'
+        default: 'accepted'
     },
     replay_review: {
         type: String,

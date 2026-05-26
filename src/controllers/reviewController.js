@@ -40,8 +40,8 @@ exports.create = async (req, res) => {
             business_profile_id: resolvedBusinessProfileId,
             review,
             rating,
-            status: 'pending',
-            review_type: 'pending'
+            status: 'accepted',
+            review_type: 'accepted'
         });
 
         const result = await newReview.save();
@@ -56,7 +56,7 @@ exports.create = async (req, res) => {
 
         res.status(201).json({
             status: true,
-            message: 'Thank you for your review. It will be visible once approved by the admin.',
+            message: 'Thank you for your review.',
             data: result
         });
     } catch (err) {
@@ -83,7 +83,7 @@ exports.list = async (req, res) => {
 
         const reviews = await Review.find(filter)
             .populate('vendor_id', 'name email mobile_number profile_image')
-            .populate('customer_id', 'name email mobile_number')
+            .populate('customer_id', 'name email mobile_number profile_image profilePicture')
             .populate('business_profile_id', 'businessName service_id vendor_id address')
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -126,7 +126,7 @@ exports.findById = async (req, res) => {
     try {
         const review = await Review.findById(id)
             .populate('vendor_id', 'name email mobile_number profile_image')
-            .populate('customer_id', 'name email mobile_number')
+            .populate('customer_id', 'name email mobile_number profile_image profilePicture')
             .populate('business_profile_id', 'businessName service_id vendor_id address');
 
         if (!review) {
@@ -162,7 +162,7 @@ exports.findByVendorId = async (req, res) => {
         if (status) filter.status = status;
 
         const reviews = await Review.find(filter)
-            .populate('customer_id', 'name email mobile_number')
+            .populate('customer_id', 'name email mobile_number profile_image profilePicture')
             .populate('business_profile_id', 'businessName service_id vendor_id address')
             .sort({ createdAt: -1 })
             .skip(skip)

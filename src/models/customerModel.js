@@ -4,6 +4,7 @@ const customerSchema = new mongoose.Schema({
     name: { type: String, required: true },
     mobile_number: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
+    profile_image: { type: String, required: false, default: null },
     password: { type: String, required: false },
     is_otp_verified: { type: Boolean, default: false },
     otp_code: { type: String, required: false },
