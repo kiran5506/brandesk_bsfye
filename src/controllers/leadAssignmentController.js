@@ -245,6 +245,60 @@ exports.listAdminLeads = async (req, res) => {
   }
 };
 
+exports.deleteAdminLead = async (req, res) => {
+  try {
+    const { inquiryId } = req.params;
+
+    if (!inquiryId) {
+      return res.status(400).json({ status: false, message: 'inquiryId is required' });
+    }
+
+    const inquiry = await CustomerInquiry.findById(inquiryId);
+    if (!inquiry || !inquiry.isActive) {
+      return res.status(404).json({ status: false, message: 'Lead not found' });
+    }
+
+    inquiry.isActive = false;
+    await inquiry.save();
+
+    await LeadAssignment.updateMany(
+      { inquiry_id: inquiryId, isActive: true },
+      { $set: { isActive: false } }
+    );
+
+    return res.status(200).json({
+      status: true,
+      message: 'Lead deleted successfully'
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: `An error occurred: ${err.message}` });
+  }
+};
+
+exports.deleteReplacementRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ status: false, message: 'id is required' });
+    }
+
+    const request = await LeadReplacementRequest.findById(id);
+    if (!request) {
+      return res.status(404).json({ status: false, message: 'Replacement request not found' });
+    }
+
+    await LeadReplacementRequest.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      status: true,
+      message: 'Replacement request deleted successfully'
+    });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: `An error occurred: ${err.message}` });
+  }
+};
+
 exports.listReplacementRequests = async (req, res) => {
   try {
     const requests = await LeadReplacementRequest.find()
