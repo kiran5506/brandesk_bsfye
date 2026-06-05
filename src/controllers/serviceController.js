@@ -248,6 +248,7 @@ exports.findByIdWithProfiles = async (req, res) => {
     const vendorId = (req.query.vendor_id || req.query.vendorId || '').toString().trim();
     const budgetSort = (req.query.budget_sort || req.query.budgetSort || '').toString().trim();
     const discountSort = (req.query.discount_sort || req.query.discountSort || '').toString().trim();
+    const priority = (req.query.priority || req.query.order_priority || 'sort').toString().trim().toLowerCase();
     const ratingFilter = Number(req.query.rating || req.query.rating_min || req.query.ratingMin || 0);
 
     try {
@@ -278,6 +279,10 @@ exports.findByIdWithProfiles = async (req, res) => {
             return res.status(400).json({ status: false, message: 'Invalid type. Use top or regular.' });
         }
 
+        if (!['recent', 'sort'].includes(priority)) {
+            return res.status(400).json({ status: false, message: 'Invalid priority. Use recent or sort.' });
+        }
+
         const vendorFilter = {
             credits: profileType === 'regular' ? { $eq: 0 } : { $gt: 0 }
         };
@@ -294,29 +299,43 @@ exports.findByIdWithProfiles = async (req, res) => {
         const eligibleVendorIds = eligibleVendors.map((vendor) => vendor._id);
 
         if (!eligibleVendorIds.length) {
-            return res.status(200).json({
-                status: true,
-                message: 'Service data with business profiles',
-                data: {
-                    service: serviceResponse,
-                    business_profiles: [],
-                    pagination: {
-                        page,
-                        limit,
-                        total: 0,
-                        totalPages: 0,
-                        hasNextPage: false,
-                        hasPrevPage: false
+            if (profileType !== 'top') {
+                return res.status(200).json({
+                    status: true,
+                    message: 'Service data with business profiles',
+                    data: {
+                        service: serviceResponse,
+                        business_profiles: [],
+                        pagination: {
+                            page,
+                            limit,
+                            total: 0,
+                            totalPages: 0,
+                            hasNextPage: false,
+                            hasPrevPage: false
+                        }
                     }
-                }
-            });
+                });
+            }
+            // For 'top' type: if no vendors have credits, fall back to returning recent business profiles
+            // for the service without vendor_id restriction so users still see recent profiles.
+        } else {
+            businessProfileFilter.vendor_id = { $in: eligibleVendorIds };
         }
-
-        businessProfileFilter.vendor_id = { $in: eligibleVendorIds };
 
         const businessProfiles = await BusinessProfile.find(businessProfileFilter)
             .populate('vendor_id', 'name email mobile_number')
-            .populate('service_id', 'serviceName serviceType');
+            .populate('service_id', 'serviceName serviceType')
+            .sort({ createdAt: -1 });
+
+        console.log('kiran businessProfiles-->', JSON.stringify(businessProfiles, null, 2));
+
+        // console.log(`\n=== INITIAL DB QUERY - ${profileType.toUpperCase()} ===`);
+        // console.log(`Total profiles from DB: ${businessProfiles.length}`);
+        // console.log(`First 3 profiles (DB order):`);
+        // businessProfiles.slice(0, 3).forEach((p, i) => {
+        //     console.log(`  [${i}] ID: ${p._id}, CreatedAt: ${p.createdAt}, Vendor: ${p.vendor_id?.name}`);
+        // });
 
         const cityIds = [...new Set(
             businessProfiles
@@ -339,10 +358,20 @@ exports.findByIdWithProfiles = async (req, res) => {
             .map((profile) => toObjectId(profile?._id))
             .filter(Boolean);
 
+        const serviceIds = businessProfiles
+            .map((profile) => profile.service_id?._id || profile.service_id)
+            .filter(Boolean);
+
+        console.log(`Vendor IDs for packages query: ${vendorIds.map(id => id.toString()).join(', ')}`);
+        console.log(`Business Profile IDs for packages query: ${businessProfileObjectIds.map(id => id.toString()).join(', ')}`);
+        console.log(`Service IDs for packages query: ${serviceIds.map(id => id.toString()).join(', ')}`);
+
         const packages = await BusinessPackage.find({
             vendor_id: { $in: vendorIds },
-            business_profile_id: { $in: businessProfileObjectIds }
+            service_id: { $in: serviceIds }
         }).select('vendor_id business_profile_id cityPricing');
+
+        console.log('kiran packages-->', JSON.stringify(packages, null, 2));
 
         // Prepare vendor ObjectId list for aggregation
         const vendorObjectIds = vendorIds
@@ -413,8 +442,12 @@ exports.findByIdWithProfiles = async (req, res) => {
             return acc;
         }, {});
 
+        console.log('kiran ratingsByBusinessProfile-->', JSON.stringify(packages, null, 2));
+
         const lowestByBusinessProfile = packages.reduce((acc, pkg) => {
-            const profileId = pkg.business_profile_id?.toString();
+            console.log(`Package-->`, JSON.stringify(pkg, null, 2));
+            const profileId = pkg.vendor_id?.toString();
+            console.log(`Processing package for business_profile_id: ${profileId}`);
             if (!profileId) return acc;
             const pricingList = Array.isArray(pkg.cityPricing) ? pkg.cityPricing : [];
             pricingList.forEach((pricing) => {
@@ -433,10 +466,17 @@ exports.findByIdWithProfiles = async (req, res) => {
             return acc;
         }, {});
 
+        console.log('kiran lowestByBusinessProfile-->', JSON.stringify(lowestByBusinessProfile, null, 2));  
+
         const profilesList = businessProfiles.map(profile => {
+            console.log(`\nMapping profile ID: ${JSON.stringify(profile.vendor_id?._id || profile.vendor_id)}`);
             const profileKey = profile?._id?.toString?.() || '';
             const vendorKey = (profile.vendor_id?._id || profile.vendor_id)?.toString();
-            const lowestPricing = profileKey ? lowestByBusinessProfile[profileKey] : null;
+            const lowestPricing = profileKey ? lowestByBusinessProfile[vendorKey] : null;
+
+            console.log(`\nMapping profile ID: ${profileKey}`);
+            console.log(`  Vendor ID: ${vendorKey}`);
+            console.log(`  Lowest Pricing: ${JSON.stringify(lowestPricing)}`);
 
             const profileRatings = profileKey ? ratingsByBusinessProfile[profileKey] : null;
             const vendorLegacyRatings = vendorKey ? ratingsByVendorLegacy[vendorKey] : null;
@@ -481,32 +521,73 @@ exports.findByIdWithProfiles = async (req, res) => {
         });
         });
 
+        console.log('\n=== MAPPED PROFILES_LIST ===');
+        console.log(`Total mapped profiles: ${profilesList.length}`);
+        console.log('First 5 mapped profiles (preserve DB order):');
+        profilesList.slice(0, 5).forEach((p, i) => {
+            console.log(`  [${i}] ID: ${p._id}, CreatedAt: ${p.createdAt}, lowestOfferPrice: ${p.lowestOfferPrice}, lowestDiscount: ${p.lowestDiscount}, avgRating: ${p.averageRating}`);
+        });
+
         let filteredProfiles = profilesList;
 
         if (Number.isFinite(ratingFilter) && ratingFilter >= 1 && ratingFilter <= 5) {
             filteredProfiles = filteredProfiles.filter((profile) => Number(profile.averageRating || 0) >= ratingFilter);
+            console.log(`Applied ratingFilter >= ${ratingFilter}, remaining: ${filteredProfiles.length}`);
+            console.log('First 5 after rating filter:');
+            filteredProfiles.slice(0,5).forEach((p,i)=>{
+                console.log(`  [${i}] ID: ${p._id}, CreatedAt: ${p.createdAt}, avgRating: ${p.averageRating}`);
+            });
+        } else {
+            console.log('No rating filter applied.');
         }
 
-        if (budgetSort === 'low_to_high') {
-            filteredProfiles = [...filteredProfiles].sort((a, b) => Number(a.lowestOfferPrice || 0) - Number(b.lowestOfferPrice || 0));
-        } else if (budgetSort === 'high_to_low') {
-            filteredProfiles = [...filteredProfiles].sort((a, b) => Number(b.lowestOfferPrice || 0) - Number(a.lowestOfferPrice || 0));
-        }
-
-        if (discountSort === 'low_to_high') {
-            filteredProfiles = [...filteredProfiles].sort((a, b) => Number(a.lowestDiscount || 0) - Number(b.lowestDiscount || 0));
-        } else if (discountSort === 'high_to_low') {
-            filteredProfiles = [...filteredProfiles].sort((a, b) => Number(b.lowestDiscount || 0) - Number(a.lowestDiscount || 0));
-        }
-
-        // For regular vendors, always show top-rated first.
-        if (profileType === 'regular') {
-            filteredProfiles = [...filteredProfiles].sort((a, b) => {
+        // ALWAYS sort by recency (newest first) for ALL profile types at the database level
+        // This ensures consistent ordering regardless of other filters
+        // Sort by createdAt descending (newest first), then by other criteria as secondary
+        const sortedProfiles = [...filteredProfiles].sort((a, b) => {
+            // Primary: Always sort by createdAt descending (newest first)
+            const timeA = new Date(a.createdAt).getTime();
+            const timeB = new Date(b.createdAt).getTime();
+            const recencyDiff = timeB - timeA; // Descending order: newer first
+            
+            if (recencyDiff !== 0) return recencyDiff;
+            
+            // If same date, apply secondary sorts
+            if (profileType === 'top') {
+                // For top: use budget/discount as tiebreakers if specified
+                if (budgetSort === 'low_to_high') {
+                    const priceDiff = Number(a.lowestOfferPrice || 0) - Number(b.lowestOfferPrice || 0);
+                    if (priceDiff !== 0) return priceDiff;
+                } else if (budgetSort === 'high_to_low') {
+                    const priceDiff = Number(b.lowestOfferPrice || 0) - Number(a.lowestOfferPrice || 0);
+                    if (priceDiff !== 0) return priceDiff;
+                }
+                
+                if (discountSort === 'low_to_high') {
+                    const discDiff = Number(a.lowestDiscount || 0) - Number(b.lowestDiscount || 0);
+                    if (discDiff !== 0) return discDiff;
+                } else if (discountSort === 'high_to_low') {
+                    const discDiff = Number(b.lowestDiscount || 0) - Number(a.lowestDiscount || 0);
+                    if (discDiff !== 0) return discDiff;
+                }
+            } else if (profileType === 'regular') {
+                // For regular: rating -> reviewCount as tiebreakers
                 const ratingDiff = Number(b.averageRating || 0) - Number(a.averageRating || 0);
                 if (ratingDiff !== 0) return ratingDiff;
-                return Number(b.reviewCount || 0) - Number(a.reviewCount || 0);
-            });
-        }
+                const reviewDiff = Number(b.reviewCount || 0) - Number(a.reviewCount || 0);
+                if (reviewDiff !== 0) return reviewDiff;
+            }
+            
+            return 0;
+        });
+        
+        console.log('\n=== FINAL SORTED PROFILES ===');
+        console.log(`Total after sort: ${sortedProfiles.length}`);
+        sortedProfiles.slice(0,5).forEach((p,i)=>{
+            console.log(`  [${i}] ID: ${p._id}, CreatedAt: ${p.createdAt}, lowestOfferPrice: ${p.lowestOfferPrice}, lowestDiscount: ${p.lowestDiscount}, avgRating: ${p.averageRating}`);
+        });
+
+        filteredProfiles = sortedProfiles;
 
         const total = filteredProfiles.length;
         const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
