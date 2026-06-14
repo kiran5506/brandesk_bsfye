@@ -13,16 +13,16 @@ const normalizeArray = (value) => {
 
 exports.create = async (req, res) => {
     console.log(req.body);
-    console.log('files-->', req.files);
+    //console.log('files-->', req.files);
 
-    const files = req.files;
+    //const files = req.files;
     const { eventName, serviceCategory, serviceCategories, service_id, service_ids, skills } = req.body;
 
     try {
         let image = "";
-        if (files && files.image) {
-            image = files.image[0].key;
-        }
+        // if (files && files.image) {
+        //     image = files.image[0].key;
+        // }
 
         const skillsArray = skills ? (Array.isArray(skills) ? skills : [skills]) : [];
 
@@ -141,7 +141,7 @@ exports.list = async (req, res) => {
                 //serviceCategories: event.serviceCategories,
                 serviceCategory: event.serviceCategories ? event.serviceCategories.join(', ') : '',
                 skills: event.skills,
-                imagePath: baseUrl + event.image,
+                //imagePath: event.image ? baseUrl + event.image : null,
                 isActive: event.isActive,
                 createdAt: event.createdAt,
                 updatedAt: event.updatedAt

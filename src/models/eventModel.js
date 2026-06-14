@@ -4,7 +4,7 @@ const eventSchema = new mongoose.Schema({
   eventName: { type: String, required: true },
   service_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
   serviceCategories: { type: [String], required: true },
-  image: { type: String, required: true },
+  image: { type: String, required: false },
   skills: [{ type: String }],
   isActive: { type: Boolean, default: true }
 }, {

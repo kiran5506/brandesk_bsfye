@@ -15,6 +15,7 @@ const businessProfileSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    selectedCities: [{ type: mongoose.Schema.Types.ObjectId, ref: 'City' }],
     profilePicture: {
         type: String,
         default: ''

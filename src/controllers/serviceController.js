@@ -9,12 +9,21 @@ const mongoose = require('mongoose');
 const baseUrl = process.env.BASE_URL;
 const escapeRegExp = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const normalizeArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+        return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    return [value];
+};
+
 exports.create = async (req, res) => {
     console.log(req.body);
     console.log('files-->', req.files);
 
     const files = req.files;
-    const { serviceName, serviceType, portfolioType, skills, description } = req.body;
+    const { serviceName, serviceType, portfolioType, skills, event_ids, description } = req.body;
     
     try {
         let image = "";
@@ -22,12 +31,17 @@ exports.create = async (req, res) => {
             image = files.image[0].key;
         }
 
+        const resolvedEventIds = normalizeArray(event_ids).length
+        ? normalizeArray(event_ids)
+        : normalizeArray(event_ids);
+
         const newService = new Service({
             serviceName,
             serviceType,
             portfolioType,
             image,
             skills,
+            event_ids: resolvedEventIds.length > 0 ? resolvedEventIds : undefined,
             description
         });
         
@@ -41,7 +55,7 @@ exports.create = async (req, res) => {
 exports.edit = async (req, res) => {
     const files = req.files;
     const { id } = req.params;
-    const { serviceName, serviceType, portfolioType, skills, description } = req.body;
+    const { serviceName, serviceType, portfolioType, skills, event_ids, description } = req.body;
     
     try {
         const service = await Service.findOne({ _id: id });
@@ -56,6 +70,10 @@ exports.edit = async (req, res) => {
             image = service.image;
         }
 
+        const resolvedEventIds = normalizeArray(event_ids).length
+        ? normalizeArray(event_ids)
+        : normalizeArray(event_ids);
+
         const result = await Service.findByIdAndUpdate(
             id,
             {
@@ -64,6 +82,7 @@ exports.edit = async (req, res) => {
                 portfolioType,
                 image,
                 skills,
+                event_ids: resolvedEventIds.length > 0 ? resolvedEventIds : service.event_ids,
                 description
             },
             { new: true, runValidators: true }
@@ -203,7 +222,13 @@ exports.findById = async (req, res) => {
             service.image = baseUrl + service.image;
         }
 
-        res.status(200).json({ status: true, message: 'Service data', data: service });
+        const events = await Event.find({
+            _id: { $in: service.event_ids }
+        }).select('eventName');
+
+        const serviceObj = service.toObject();
+        serviceObj.eventCategories = events.map(event => event.eventName);
+        res.status(200).json({ status: true, message: 'Service data', data: serviceObj });
     } catch (err) {
         res.status(500).send(`An error occurred: ${err.message}`);
     }
@@ -225,6 +250,7 @@ exports.findByCategory = async (req, res) => {
                 serviceType: service.serviceType,
                 portfolioType: service.portfolioType,
                 skills: service.skills,
+                event_ids: service.event_ids,
                 description: service.description,
                 imagePath: baseUrl + service.image,
                 isActive: service.isActive,

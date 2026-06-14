@@ -3,6 +3,7 @@ const BusinessPortfolio = require("../models/businessPortfolioModel");
 const BusinessPackage = require("../models/businessPackageModel");
 const Event = require("../models/eventModel");
 const Vendor = require("../models/vendorModule");
+const Service = require('../models/serviceModel');
 const City = require('../models/cityModel');
 const mongoose = require('mongoose');
 const baseUrl = process.env.BASE_URL;
@@ -32,6 +33,31 @@ const resolveCityId = async (city) => {
     return cityDoc ? cityDoc._id.toString() : null;
 };
 
+const normalizeArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+    if (typeof value === 'string') {
+        const s = value.trim();
+        // If it looks like a JSON array, try parsing it
+        if (s.startsWith('[') && s.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(s);
+                if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+            } catch (e) {
+                // fallthrough to tolerant parsing below
+            }
+        }
+
+        // Remove surrounding brackets/whitespace then split by comma
+        const cleaned = s.replace(/^[\[\]\s]*|[\[\]\s]*$/g, '');
+        return cleaned
+            .split(',')
+            .map((item) => String(item).replace(/^['"]+|['"]+$/g, '').trim())
+            .filter(Boolean);
+    }
+    return [String(value)];
+};
+
 exports.create = async (req, res) => {
     console.log(req.body);
     console.log('files-->', req.files);
@@ -51,7 +77,8 @@ exports.create = async (req, res) => {
         skills,
         languages,
         about_us,
-        communication_address
+        communication_address,
+        selectedCities
     } = req.body;
     
     try {
@@ -72,6 +99,12 @@ exports.create = async (req, res) => {
                 message: 'Invalid city. Please select a valid city from the list.'
             });
         }
+
+    console.log('selectedCities before normalization:', selectedCities);
+
+    const resolvedSelectedCities = normalizeArray(selectedCities);
+    console.log('Resolved city ID:', resolvedCityId);
+    console.log('Resolved selected cities:', resolvedSelectedCities);
 
         // Check if business profile already exists for this vendor and service
         const existingProfile = await BusinessProfile.findOne({ 
@@ -123,7 +156,8 @@ exports.create = async (req, res) => {
             documents,
             about_us: about_us || '',
             communication_address: communication_address || '',
-            cover_images: coverImages
+            cover_images: coverImages,
+            selectedCities: resolvedSelectedCities
         });
         
         const result = await newBusinessProfile.save();
@@ -377,9 +411,89 @@ exports.findByVendorId = async (req, res) => {
             return acc;
         }, {});
 
+        // Resolve selectedCities for each profile and prefetch the city names
+        const allSelectedCityIds = [...new Set(
+            businessProfiles
+                .flatMap((profile) => normalizeArray(profile?.selectedCities))
+                .filter(Boolean)
+        )];
+        console.log('All selected city ids (raw):', allSelectedCityIds);
+
+        let selectedCityDocs = [];
+        if (allSelectedCityIds.length) {
+            const validObjectIds = allSelectedCityIds
+                .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
+                .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+            if (validObjectIds.length) {
+                selectedCityDocs = await City.find({
+                    _id: { $in: validObjectIds }
+                }).select('cityName');
+            }
+        }
+
+        const selectedCityMap = selectedCityDocs.reduce((acc, doc) => {
+            acc[doc._id.toString()] = doc.cityName;
+            return acc;
+        }, {});
+        console.log('Selected city map:', selectedCityMap);
+        // Prefetch services for all service_ids present in the profiles, read their
+        // event_ids, then fetch those Event documents and attach them per-service.
+        const serviceIds = [...new Set(
+            businessProfiles
+                .map((profile) => (profile?.service_id?._id || profile?.service_id))
+                .filter(Boolean)
+                .map((s) => String(s))
+        )].filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+
+        let eventsByService = {};
+        if (serviceIds.length) {
+            const serviceObjectIds = serviceIds.map((id) => new mongoose.Types.ObjectId(String(id)));
+
+            // Fetch the services to read their event_ids
+            const servicesWithEvents = await Service.find({ _id: { $in: serviceObjectIds } })
+                .select('_id event_ids');
+
+            // Collect all unique event ids referenced by these services
+            const allEventIds = [...new Set(
+                servicesWithEvents.flatMap((s) => (s.event_ids || []).map((e) => String(e)))
+            )].filter((id) => mongoose.Types.ObjectId.isValid(String(id)));
+
+            let eventDocs = [];
+            if (allEventIds.length) {
+                const eventObjectIds = allEventIds.map((id) => new mongoose.Types.ObjectId(String(id)));
+                eventDocs = await Event.find({ _id: { $in: eventObjectIds } })
+                    .select('_id eventName image')
+                    .sort({ createdAt: -1 });
+            }
+
+            const eventMap = eventDocs.reduce((acc, ev) => {
+                acc[String(ev._id)] = {
+                    _id: ev._id,
+                    eventName: ev.eventName,
+                    image: ev.image ? baseUrl + ev.image : ''
+                };
+                return acc;
+            }, {});
+
+            // Build eventsByService map from each service's event_ids
+            servicesWithEvents.forEach((svc) => {
+                const key = String(svc._id);
+                eventsByService[key] = (svc.event_ids || [])
+                    .map((eid) => eventMap[String(eid)])
+                    .filter(Boolean);
+            });
+        }
+
         const profilesList = businessProfiles.map(profile => {
             const cityIdValue = profile?.address?.city ? profile.address.city.toString() : '';
             const resolvedCityName = cityIdValue ? (cityMap[cityIdValue] || profile?.address?.city) : profile?.address?.city;
+            // Resolve selectedCities for this profile to an array of ids and map to names
+            const resolvedSelectedCitiesForProfile = normalizeArray(profile?.selectedCities);
+            const selectedCityNamesForProfile = resolvedSelectedCitiesForProfile
+                .map((id) => selectedCityMap[String(id)]).filter(Boolean);
+            const serviceIdValue = profile?.service_id?._id ? String(profile.service_id._id) : String(profile.service_id || '');
+            const profileEvents = serviceIdValue ? (eventsByService[serviceIdValue] || []) : [];
 
             return {
                 _id: profile._id,
@@ -393,6 +507,9 @@ exports.findByVendorId = async (req, res) => {
                     ...profile.address,
                     city: resolvedCityName || ""
                 },
+                selectedCities: resolvedSelectedCitiesForProfile,
+                selectedCityNames: selectedCityNamesForProfile,
+                events: profileEvents,
                 skills: profile.skills,
                 languages: profile.languages,
                 documents: {

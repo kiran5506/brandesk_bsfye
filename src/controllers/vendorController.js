@@ -142,7 +142,7 @@ exports.approveOrReject = async (req, res) => {
         if (profile_status === 'accepted') {
             updatedVendor = await Vendor.findByIdAndUpdate(
                 id,
-                { ...updatePayload, $inc: { credits: 10 } },
+                { ...updatePayload, $inc: { credits: 5 } },
                 updateOptions
             );
         } else {
@@ -166,9 +166,16 @@ exports.listWithStatus = async (req, res) => {
 
         if (profile_status) {
             filter.profile_status = profile_status;
+            if(filter.profile_status === 'pending'){
+                filter.is_otp_verified = true;
+                filter.is_profile_completed = true
+                filter.is_profile_verified = false;
+            }
         }
 
-    const vendors = await Vendor.find(filter, '_id name mobile_number email profile_image profile_status is_profile_verified is_profile_completed is_otp_verified isActive approved_date rejected_date createdAt')
+        console.log("Filter for listing vendors:", filter);
+
+        const vendors = await Vendor.find(filter, '_id name mobile_number email profile_image profile_status is_profile_verified is_profile_completed is_otp_verified isActive approved_date rejected_date createdAt')
             .sort({ createdAt: -1 });
 
         if (!vendors || vendors.length === 0) {

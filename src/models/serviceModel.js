@@ -6,6 +6,7 @@ const serviceSchema = new mongoose.Schema({
   portfolioType: { type: String, enum: ['Multiple', 'Single'], required: true },
   image: { type: String, required: true },
   skills: { type: String, required: false },
+  event_ids: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' }],
   description: { type: String, required: false },
   isActive: { type: Boolean, default: true }
 }, {
