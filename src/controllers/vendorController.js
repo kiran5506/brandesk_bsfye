@@ -140,9 +140,20 @@ exports.approveOrReject = async (req, res) => {
         let updatedVendor;
 
         if (profile_status === 'accepted') {
+            let id = "694e6ca8aa5aae1acb87f836";
+            let credits = 0;
+            try{
+                const settingsData = await Settings.findById(id);
+                if(settingsData && settingsData.credit_points){
+                    credits = settingsData.credit_points;
+                }
+            }catch(err){
+                console.error("Error fetching settings data:", err);
+            }
+
             updatedVendor = await Vendor.findByIdAndUpdate(
                 id,
-                { ...updatePayload, $inc: { credits: 5 } },
+                { ...updatePayload, $inc: { credits } },
                 updateOptions
             );
         } else {

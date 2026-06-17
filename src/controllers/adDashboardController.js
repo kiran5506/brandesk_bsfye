@@ -11,7 +11,7 @@ const baseUrl = process.env.BASE_URL;
 
 exports.siteSettings = async (req, res) => {
     const id = req.params.id;
-    const { page_title, mobile_number, email, whatsapp_number, address, why_bsfye, youtube_url, linkedin_url, google_analytics, facebook_url, twitter_url, instagram_url, top_header_title } = req.body;
+    const { page_title, mobile_number, email, whatsapp_number, address, why_bsfye, youtube_url, linkedin_url, google_analytics, facebook_url, twitter_url, instagram_url, top_header_title, credit_points } = req.body;
     const files = req.files;
     console.log("Received req.body:", req.body);
     try {
@@ -46,6 +46,7 @@ exports.siteSettings = async (req, res) => {
             ...(youtube_url && { youtube_url }),
             ...(linkedin_url && { linkedin_url }),
             ...(top_header_title && { top_header_title }),
+            ...(credit_points && { credit_points }),
         };
 
         // Remove undefined fields (prevents overwrite)

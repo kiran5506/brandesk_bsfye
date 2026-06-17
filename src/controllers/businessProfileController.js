@@ -612,14 +612,11 @@ exports.detailsById = async (req, res) => {
             };
         });
 
-        const events = await Event.find({ service_ids: businessProfile.service_id?._id || businessProfile.service_id })
-            .select('eventName image')
-            .sort({ createdAt: -1 });
+        const eventIdsForService = await Service.findById(businessProfile.service_id?._id || businessProfile.service_id);
 
-        const eventResponse = events.map((event) => ({
-            ...event.toObject(),
-            image: event.image ? baseUrl + event.image : ""
-        }));
+        const events = await Event.find({ _id: { $in: eventIdsForService?.event_ids || [] } })
+            .select('eventName')
+            .sort({ createdAt: -1 });
 
         res.status(200).json({
             status: true,
@@ -629,7 +626,7 @@ exports.detailsById = async (req, res) => {
                 vendor: vendorResponse,
                 portfolio: portfolioResponse,
                 packages: packageResponse,
-                events: eventResponse
+                events: events
             }
         });
     } catch (err) {

@@ -298,7 +298,7 @@ exports.findByIdWithProfiles = async (req, res) => {
 
         const businessProfileFilter = { service_id: id };
         if (cityId) {
-            businessProfileFilter['address.city'] = cityId;
+            businessProfileFilter.selectedCities = { $in: [cityId] };
         }
 
         if (!['top', 'regular'].includes(profileType)) {

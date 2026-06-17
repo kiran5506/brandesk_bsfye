@@ -17,6 +17,7 @@ const settingsSchema = new  mongoose.Schema({
     youtube_url: { type: String, required: false },
     linkedin_url: { type: String, required: false },
     top_header_title: { type: String, required: false },
+    credit_points: { type: Number, required: false , default: 0},
 },{
     timestamps: true
 })
