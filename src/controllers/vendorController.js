@@ -1,5 +1,6 @@
 const Vendor = require("../models/vendorModule");
 const BusinessProfile = require("../models/businessProfileModel");
+const Settings = require("../models/settingsModule");
 const baseUrl = process.env.BASE_URL;
 
 exports.edit = async (req, res) => {    
@@ -140,14 +141,16 @@ exports.approveOrReject = async (req, res) => {
         let updatedVendor;
 
         if (profile_status === 'accepted') {
-            let id = "694e6ca8aa5aae1acb87f836";
+            const setting_id = "694e6ca8aa5aae1acb87f836";
             let credits = 0;
-            try{
-                const settingsData = await Settings.findById(id);
-                if(settingsData && settingsData.credit_points){
+            try {
+                const settingsData = await Settings.findById(setting_id);
+                console.log("Fetched settings data:", settingsData);
+                if (settingsData && settingsData.credit_points) {
                     credits = settingsData.credit_points;
                 }
-            }catch(err){
+                console.log("Credits to be added:", credits);
+            } catch (err) {
                 console.error("Error fetching settings data:", err);
             }
 
@@ -159,6 +162,8 @@ exports.approveOrReject = async (req, res) => {
         } else {
             updatedVendor = await Vendor.findByIdAndUpdate(id, updatePayload, updateOptions);
         }
+
+        console.log("Updated vendor data:", updatedVendor);
 
         res.status(200).json({
             status: true,

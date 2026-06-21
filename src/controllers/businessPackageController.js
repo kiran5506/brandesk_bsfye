@@ -193,3 +193,22 @@ exports.delete = async (req, res) => {
         res.status(500).send(`An error occurred: ${error.message}`);
     }
 };
+
+exports.toggleStatus = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const businessPackage = await BusinessPackage.findById(id);
+        if (!businessPackage) {
+            return res.status(404).json({ status: false, message: 'Business package not found.' });
+        }
+        businessPackage.isActive = !businessPackage.isActive;
+        await businessPackage.save();
+        res.status(200).json({
+            status: true,
+            message: `Business package ${businessPackage.isActive ? 'activated' : 'deactivated'} successfully.`,
+            data: { _id: businessPackage._id, isActive: businessPackage.isActive }
+        });
+    } catch (error) {
+        res.status(500).send(`An error occurred: ${error.message}`);
+    }
+};

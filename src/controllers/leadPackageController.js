@@ -1,12 +1,22 @@
 const LeadPackage = require('../models/leadPackageModel');
+const Service = require('../models/serviceModel');
 const baseUrl = process.env.BASE_URL;
+
+const normalizeArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+        return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    return [value];
+};
 
 exports.create = async (req, res) => {
     console.log(req.body);
     console.log('files-->', req.files);
 
     const files = req.files;
-    const { packageName, totalLeads, amount, description } = req.body;
+    const { packageName, totalLeads, amount, description, service_id, service_ids, serviceCategory, serviceCategories } = req.body;
 
     try {
         let image = "";
@@ -14,8 +24,23 @@ exports.create = async (req, res) => {
             image = files.image[0].key;
         }
 
+        const resolvedServiceIds = normalizeArray(service_ids).length
+            ? normalizeArray(service_ids)
+            : normalizeArray(service_id);
+
+        let resolvedServiceCategories = normalizeArray(serviceCategories).length
+            ? normalizeArray(serviceCategories)
+            : normalizeArray(serviceCategory);
+
+        if (resolvedServiceCategories.length === 0 && resolvedServiceIds.length > 0) {
+            const services = await Service.find({ _id: { $in: resolvedServiceIds } }).select('serviceName');
+            resolvedServiceCategories = services.map((service) => service.serviceName).filter(Boolean);
+        }
+
         const newLeadPackage = new LeadPackage({
             packageName,
+            service_ids: resolvedServiceIds,
+            serviceCategories: resolvedServiceCategories,
             totalLeads: parseInt(totalLeads),
             amount: parseFloat(amount),
             image,
@@ -32,7 +57,7 @@ exports.create = async (req, res) => {
 exports.edit = async (req, res) => {
     const files = req.files;
     const { id } = req.params;
-    const { packageName, totalLeads, amount, description } = req.body;
+    const { packageName, totalLeads, amount, description, service_id, service_ids, serviceCategory, serviceCategories } = req.body;
 
     try {
         const leadPackage = await LeadPackage.findOne({ _id: id });
@@ -47,10 +72,29 @@ exports.edit = async (req, res) => {
             image = leadPackage.image;
         }
 
+        const resolvedServiceIds = normalizeArray(service_ids).length
+            ? normalizeArray(service_ids)
+            : normalizeArray(service_id);
+
+        let resolvedServiceCategories = normalizeArray(serviceCategories).length
+            ? normalizeArray(serviceCategories)
+            : normalizeArray(serviceCategory);
+
+        if (resolvedServiceCategories.length === 0 && resolvedServiceIds.length > 0) {
+            const services = await Service.find({ _id: { $in: resolvedServiceIds } }).select('serviceName');
+            resolvedServiceCategories = services.map((service) => service.serviceName).filter(Boolean);
+        }
+
+        if (resolvedServiceCategories.length === 0) {
+            resolvedServiceCategories = leadPackage.serviceCategories || [];
+        }
+
         const result = await LeadPackage.findByIdAndUpdate(
             id,
             {
                 packageName,
+                service_ids: resolvedServiceIds.length > 0 ? resolvedServiceIds : leadPackage.service_ids,
+                serviceCategories: resolvedServiceCategories,
                 totalLeads: parseInt(totalLeads),
                 amount: parseFloat(amount),
                 image,

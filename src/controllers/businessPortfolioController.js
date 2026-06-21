@@ -190,3 +190,22 @@ exports.deleteMedia = async (req, res) => {
         res.status(500).send(`An error occurred: ${err.message}`);
     }
 };
+
+exports.toggleStatus = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const portfolio = await BusinessPortfolio.findById(id);
+        if (!portfolio) {
+            return res.status(404).json({ status: false, message: 'Business portfolio not found.' });
+        }
+        portfolio.isActive = !portfolio.isActive;
+        await portfolio.save();
+        res.status(200).json({
+            status: true,
+            message: `Business portfolio ${portfolio.isActive ? 'activated' : 'deactivated'} successfully.`,
+            data: { _id: portfolio._id, isActive: portfolio.isActive }
+        });
+    } catch (err) {
+        res.status(500).send(`An error occurred: ${err.message}`);
+    }
+};

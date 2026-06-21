@@ -7,5 +7,6 @@ const router = express.Router();
 router.post('/create', upload.any(), businessPortfolioController.create);
 router.get('/vendor/:vendor_id', businessPortfolioController.listByVendor);
 router.patch('/delete-media/:id', businessPortfolioController.deleteMedia);
+router.patch('/toggle-status/:id', businessPortfolioController.toggleStatus);
 
 module.exports = router;

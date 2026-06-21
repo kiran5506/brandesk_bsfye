@@ -55,6 +55,10 @@ router.get('/findById/:id', leadPackageController.findById);
  *             properties:
  *               packageName:
  *                 type: string
+ *               service_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               totalLeads:
  *                 type: number
  *               amount:
@@ -97,6 +101,10 @@ router.post('/create', authenticateJWT, upload.fields([
  *             properties:
  *               packageName:
  *                 type: string
+ *               service_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               totalLeads:
  *                 type: number
  *               amount:

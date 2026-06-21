@@ -58,6 +58,94 @@ const normalizeArray = (value) => {
     return [String(value)];
 };
 
+const resolveService = async ({ service_id, serviceName }) => {
+    const serviceIdValue = String(service_id || '').trim();
+    if (serviceIdValue && mongoose.Types.ObjectId.isValid(serviceIdValue)) {
+        const byId = await Service.findById(serviceIdValue).select('_id serviceName event_ids');
+        if (byId) return byId;
+    }
+
+    const serviceNameValue = String(serviceName || '').trim();
+    if (serviceNameValue) {
+        const byName = await Service.findOne({
+            serviceName: { $regex: `^${serviceNameValue}$`, $options: 'i' }
+        }).select('_id serviceName event_ids');
+        if (byName) return byName;
+    }
+
+    return null;
+};
+
+const seedDefaultPortfolioAndPackages = async ({ vendorId, businessProfileId, serviceDoc, businessName = '' }) => {
+    const eventIds = [...new Set((serviceDoc?.event_ids || []).map((id) => String(id)))]
+        .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+    if (eventIds.length === 0) {
+        return { seededEvents: 0, createdPackages: 0 };
+    }
+
+    const existingPortfolio = await BusinessPortfolio.findOne({
+        vendor_id: vendorId,
+        business_profile_id: businessProfileId,
+        service_id: serviceDoc._id
+    });
+
+    if (!existingPortfolio) {
+        await BusinessPortfolio.create({
+            vendor_id: vendorId,
+            business_profile_id: businessProfileId,
+            service_id: serviceDoc._id,
+            events: eventIds.map((eventId) => ({
+                event_id: eventId,
+                images: [],
+                youtube_media: []
+            })),
+            isActive: false
+        });
+    } else {
+        const existingEventSet = new Set((existingPortfolio.events || []).map((item) => String(item.event_id)));
+        eventIds.forEach((eventId) => {
+            if (!existingEventSet.has(eventId)) {
+                existingPortfolio.events.push({ event_id: eventId, images: [], youtube_media: [] });
+            }
+        });
+        await existingPortfolio.save();
+    }
+
+    const existingPackages = await BusinessPackage.find({
+        vendor_id: vendorId,
+        service_id: serviceDoc._id,
+        event_id: { $in: eventIds }
+    }).select('event_id');
+
+    const existingPackageEventSet = new Set(existingPackages.map((pkg) => String(pkg.event_id)));
+
+    const eventDocs = await Event.find({ _id: { $in: eventIds } }).select('_id eventName');
+    const eventNameMap = eventDocs.reduce((acc, eventDoc) => {
+        acc[String(eventDoc._id)] = eventDoc.eventName || 'Event Package';
+        return acc;
+    }, {});
+
+    const packagesToCreate = eventIds
+        .filter((eventId) => !existingPackageEventSet.has(eventId))
+        .map((eventId) => ({
+            vendor_id: vendorId,
+            service_id: serviceDoc._id,
+            event_id: eventId,
+            packageName: `${businessName || serviceDoc.serviceName || 'Business'} - ${eventNameMap[eventId] || 'Package'}`,
+            description: '',
+            coverImage: '',
+            cityPricing: [],
+            isActive: false
+        }));
+
+    if (packagesToCreate.length > 0) {
+        await BusinessPackage.insertMany(packagesToCreate, { ordered: false });
+    }
+
+    return { seededEvents: eventIds.length, createdPackages: packagesToCreate.length };
+};
+
 exports.create = async (req, res) => {
     console.log(req.body);
     console.log('files-->', req.files);
@@ -83,12 +171,20 @@ exports.create = async (req, res) => {
     
     try {
         // Validate required fields
-        const resolvedServiceId = service_id || serviceName;
+        const serviceDoc = await resolveService({ service_id, serviceName });
+        const resolvedServiceId = serviceDoc?._id?.toString() || '';
 
         if (!vendor_id || !resolvedServiceId || !businessName || !city || !state || !pincode) {
             return res.status(400).json({ 
                 status: false, 
                 message: "Required fields are missing (vendor_id, service_id, businessName, city, state, pincode)" 
+            });
+        }
+
+        if (!serviceDoc) {
+            return res.status(400).json({
+                status: false,
+                message: 'Invalid service. Please select a valid service.'
             });
         }
 
@@ -161,10 +257,21 @@ exports.create = async (req, res) => {
         });
         
         const result = await newBusinessProfile.save();
+
+        const defaultsInfo = await seedDefaultPortfolioAndPackages({
+            vendorId: vendor_id,
+            businessProfileId: result._id,
+            serviceDoc,
+            businessName
+        });
+
         res.status(201).json({ 
             status: true, 
             message: 'Business profile created successfully.', 
-            data: result 
+            data: {
+                ...result.toObject(),
+                defaultSeed: defaultsInfo
+            }
         });
     } catch (err) {
         res.status(500).send(`An error occurred: ${err.message}`);
@@ -599,7 +706,8 @@ exports.detailsById = async (req, res) => {
 
         const packages = await BusinessPackage.find({
             vendor_id: businessProfile.vendor_id?._id || businessProfile.vendor_id,
-            service_id: businessProfile.service_id?._id || businessProfile.service_id
+            service_id: businessProfile.service_id?._id || businessProfile.service_id,
+            isActive: true
         })
             .populate('event_id', 'eventName')
             .sort({ createdAt: -1 });

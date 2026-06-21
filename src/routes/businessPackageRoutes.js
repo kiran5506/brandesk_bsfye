@@ -178,4 +178,26 @@ router.put('/edit/:id', authenticateJWT, upload.fields([
  */
 router.delete('/delete/:id', authenticateJWT, businessPackageController.delete);
 
+/**
+ * @swagger
+ * /api/business-packages/toggle-status/{id}:
+ *   patch:
+ *     summary: Toggle isActive status of a business package
+ *     tags: [Business Packages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Status toggled successfully
+ *       404:
+ *         description: Business package not found
+ */
+router.patch('/toggle-status/:id', authenticateJWT, businessPackageController.toggleStatus);
+
 module.exports = router;
