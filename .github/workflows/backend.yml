@@ -6,12 +6,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set image tag
+        id: set_tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          IMAGE_TAG="v1.0.${{ github.run_number }}-${SHORT_SHA}"
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Image tag: ${IMAGE_TAG}"
       - name: Use Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'  
+          node-version: '20.x'
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -22,13 +31,15 @@ jobs:
         with:
           context: .
           push: true
-          tags: bsfye/bsfye-backend:latest
+          tags: |
+            bsfye/bsfye-backend:latest
+            bsfye/bsfye-backend:${{ steps.set_tag.outputs.image_tag }}
   deploy:
     needs: build
     runs-on: self-hosted
     steps:
       - name: Pull Image from Docker Hub
-        run: docker pull bsfye/bsfye-backend:latest
+        run: docker pull bsfye/bsfye-backend:${{ needs.build.outputs.image_tag }}
       - name: Stop and remove existing container
         run: |
           docker stop bsfye-app-container || true
@@ -47,4 +58,6 @@ jobs:
             -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
             -e AWS_S3_BUCKET="${{ secrets.AWS_S3_BUCKET }}" \
             -e SUPPORT_EMAIL="${{ secrets.SUPPORT_EMAIL }}" \
-            bsfye/bsfye-backend:latest
+            bsfye/bsfye-backend:${{ needs.build.outputs.image_tag }}
+      - name: Clean up old untagged images
+        run: docker image prune -f
