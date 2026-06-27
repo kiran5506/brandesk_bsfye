@@ -4,6 +4,7 @@ const Service = require('../models/serviceModel');
 const BusinessProfile = require('../models/businessProfileModel');
 const BusinessPackage = require('../models/businessPackageModel');
 const LeadPackage = require('../models/leadPackageModel');
+const LeadAssignment = require('../models/leadAssignmentModel');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
@@ -663,10 +664,102 @@ exports.listByCustomer = async (req, res) => {
       };
     });
 
+    // ── Enrich all rows with the vendors assigned to each inquiry ──────────────
+    // Populate vendor + business_profile per assignment, then attach lowest
+    // package pricing so the frontend can render profile cards directly.
+    const allInquiryIds = rows.map((r) => r._id);
+
+    const allAssignments = await LeadAssignment.find({
+      inquiry_id: { $in: allInquiryIds },
+      isActive: true
+    })
+      .populate('vendor_id', 'name mobile_number profile_image credits')
+      .populate('business_profile_id', '_id businessName profilePicture cover_images')
+      .sort({ assigned_at: 1 })
+      .lean();
+
+    // Collect unique vendor_ids to fetch lowest package pricing in one query
+    const uniqueVendorIds = [
+      ...new Set(
+        allAssignments
+          .map((a) => a.vendor_id?._id)
+          .filter(Boolean)
+          .map(String)
+      )
+    ].map((id) => new mongoose.Types.ObjectId(id));
+
+    // Lowest offerPrice + corresponding marketPrice per vendor across all packages
+    const vendorPricings = uniqueVendorIds.length
+      ? await BusinessPackage.aggregate([
+          { $match: { vendor_id: { $in: uniqueVendorIds }, isActive: true } },
+          { $unwind: { path: '$cityPricing', preserveNullAndEmptyArrays: false } },
+          { $match: { 'cityPricing.offerPrice': { $gt: 0 } } },
+          {
+            $group: {
+              _id: '$vendor_id',
+              minOfferPrice: { $min: '$cityPricing.offerPrice' },
+              // market price that goes with the lowest offer (pick max for best discount display)
+              maxMarketPrice: { $max: '$cityPricing.marketPrice' }
+            }
+          }
+        ])
+      : [];
+
+    const vendorPricingMap = vendorPricings.reduce((acc, e) => {
+      acc[String(e._id)] = {
+        minOfferPrice: e.minOfferPrice || 0,
+        maxMarketPrice: e.maxMarketPrice || 0
+      };
+      return acc;
+    }, {});
+
+    const assignmentsByInquiry = allAssignments.reduce((acc, assignment) => {
+      const key = String(assignment.inquiry_id);
+      if (!acc[key]) acc[key] = [];
+
+      const v = assignment.vendor_id;
+      const bp = assignment.business_profile_id;
+      if (!v) return acc;
+
+      const pricing = vendorPricingMap[String(v._id)] || {};
+      const minOffer = pricing.minOfferPrice || 0;
+      const maxMarket = pricing.maxMarketPrice || 0;
+      const discountPercent =
+        maxMarket > 0 && minOffer > 0 && maxMarket > minOffer
+          ? Math.round(((maxMarket - minOffer) / maxMarket) * 100)
+          : 0;
+
+      acc[key].push({
+        assignment_id: String(assignment._id),
+        assignment_status: assignment.status,
+        assigned_at: assignment.assigned_at,
+        // Vendor details
+        vendor_id: String(v._id),
+        vendor_name: v.name || '',
+        vendor_mobile: v.mobile_number || '',
+        vendor_profile_image: v.profile_image || '',
+        // Business profile details
+        profile_id: bp ? String(bp._id) : null,
+        profile_name: bp?.businessName || v.name || '',
+        profile_image: bp?.profilePicture || v.profile_image || '',
+        // Package pricing
+        min_offer_price: minOffer,
+        max_market_price: maxMarket,
+        discount_percent: discountPercent
+      });
+
+      return acc;
+    }, {});
+
+    const enrichedRows = rows.map((row) => ({
+      ...row,
+      assigned_vendors: assignmentsByInquiry[String(row._id)] || []
+    }));
+
     return res.status(200).json({
       status: true,
       message: 'Customer inquiries retrieved successfully',
-      data: rows,
+      data: enrichedRows,
       pagination: {
         total,
         page: parsedPage,

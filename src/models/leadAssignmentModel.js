@@ -12,6 +12,11 @@ const leadAssignmentSchema = new mongoose.Schema(
       ref: 'vendor',
       required: true
     },
+    business_profile_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BusinessProfile',
+      required: false
+    },
     customer_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'customer',

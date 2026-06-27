@@ -474,34 +474,21 @@ exports.markViewed = async (req, res) => {
       return res.status(404).json({ status: false, message: 'Lead assignment not found' });
     }
 
-    if (!assignment.credits_deducted) {
-      const vendor = await Vendor.findById(vendor_id);
-      if (!vendor) {
-        return res.status(404).json({ status: false, message: 'Vendor not found' });
-      }
-      if (Number(vendor.credits) <= 0) {
-        return res.status(400).json({ status: false, message: 'Insufficient credits to view this lead' });
-      }
-
-      vendor.credits = Number(vendor.credits) - 1;
-      await vendor.save();
-
-      assignment.credits_deducted = true;
+    // Credits are deducted at assignment time (not at view time).
+    // Just update the status to 'viewed' if not already progressed further.
+    const terminalStatuses = ['viewed', 'accepted', 'rejected', 'replace_requested', 'replaced', 'expired'];
+    if (!terminalStatuses.includes(assignment.status)) {
       assignment.status = 'viewed';
       assignment.viewed_at = new Date();
       await assignment.save();
-
-      return res.status(200).json({
-        status: true,
-        message: 'Lead viewed and credits deducted',
-        data: { assignment, vendorCredits: vendor.credits }
-      });
     }
 
-    res.status(200).json({
+    const vendor = await Vendor.findById(vendor_id).select('credits').lean();
+
+    return res.status(200).json({
       status: true,
-      message: 'Lead already viewed',
-      data: { assignment }
+      message: 'Lead viewed',
+      data: { assignment, vendorCredits: vendor?.credits ?? 0 }
     });
   } catch (err) {
     res.status(500).json({ status: false, message: `An error occurred: ${err.message}` });

@@ -59,5 +59,12 @@ jobs:
             -e AWS_S3_BUCKET="${{ secrets.AWS_S3_BUCKET }}" \
             -e SUPPORT_EMAIL="${{ secrets.SUPPORT_EMAIL }}" \
             bsfye/bsfye-backend:${{ needs.build.outputs.image_tag }}
-      - name: Clean up old untagged images
-        run: docker image prune -f
+      - name: Remove old versioned images
+        run: |
+          CURRENT_TAG="${{ needs.build.outputs.image_tag }}"
+          docker images --format "{{.Repository}}:{{.Tag}}" \
+            | grep "^bsfye/bsfye-backend:" \
+            | grep -v ":latest" \
+            | grep -v ":${CURRENT_TAG}" \
+            | xargs -r docker rmi || true
+          docker image prune -f
