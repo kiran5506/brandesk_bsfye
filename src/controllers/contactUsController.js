@@ -1,4 +1,5 @@
 const { sendEmail } = require('../utils/mail');
+const { buildNewsletterEmail } = require('../utils/emailTemplate');
 
 /**
  * Public contact endpoint - sends an email to support
@@ -13,11 +14,15 @@ exports.contact = async (req, res) => {
     }
 
     const subject = `Website contact from ${name}`;
-    const text = `Name: ${name}\nEmail: ${email}\nMobile: ${mobile || ''}\n\nMessage:\n${message}`;
-    const html = `<p><strong>Name:</strong> ${name}</p><p><strong>Email:</strong> ${email}</p><p><strong>Mobile:</strong> ${mobile || ''}</p><hr/><p>${message}</p>`;
+    const emailContent = buildNewsletterEmail({
+      title: `Website contact from ${name}`,
+      greeting: 'Hello Support Team,',
+      intro: 'You received a new contact request from the website.',
+      body: `Name: ${name}\nEmail: ${email}\nMobile: ${mobile || ''}\n\nMessage:\n${message}`,
+    });
 
     // send email using existing utils/mail.js
-    const info = await sendEmail(process.env.SUPPORT_EMAIL, subject, text, html);
+  const info = await sendEmail(process.env.SUPPORT_EMAIL, subject, emailContent.text, emailContent.html);
 
     return res.status(200).json({ status: true, ok: true, message: 'Email sent', info });
   } catch (err) {

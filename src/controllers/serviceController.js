@@ -160,33 +160,49 @@ exports.search = async (req, res) => {
             .sort({ serviceName: 1 })
             .limit(10);
 
-        const vendors = await Vendor.find({
+        // Search business names from BusinessProfile instead of vendor names,
+        // then keep only profiles whose vendors are active + verified + accepted.
+        const matchedProfiles = await BusinessProfile.find({
             isActive: true,
-            is_profile_verified: true,
-            profile_status: 'accepted',
-            $or: [
-                { name: { $regex: regex } },
-                { email: { $regex: regex } },
-                { mobile_number: { $regex: regex } }
-            ]
-        }, '_id name')
-            .sort({ name: 1 })
-            .limit(10);
-
-        const vendorIds = vendors.map((vendor) => vendor._id);
-        const vendorProfiles = await BusinessProfile.find({
-            vendor_id: { $in: vendorIds },
-            isActive: true
+            businessName: { $regex: regex }
         })
-            .select('vendor_id service_id')
-            .sort({ createdAt: -1 });
+            .select('_id vendor_id service_id businessName')
+            .sort({ businessName: 1, createdAt: -1 })
+            .limit(50)
+            .lean();
 
-        const vendorServiceMap = vendorProfiles.reduce((acc, profile) => {
+        const profileVendorIds = [...new Set(
+            matchedProfiles
+                .map((profile) => profile?.vendor_id)
+                .filter(Boolean)
+                .map((id) => id.toString())
+        )].map((id) => new mongoose.Types.ObjectId(id));
+
+        const eligibleVendors = profileVendorIds.length
+            ? await Vendor.find({
+                _id: { $in: profileVendorIds },
+                isActive: true,
+                is_profile_verified: true,
+                profile_status: 'accepted'
+            }, '_id')
+                .lean()
+            : [];
+
+        const eligibleVendorSet = new Set(eligibleVendors.map((vendor) => vendor._id.toString()));
+
+        // Deduplicate by vendor_id and keep first profile (businessName asc, newest first)
+        const vendorProfiles = [];
+        const seenVendors = new Set();
+        matchedProfiles.forEach((profile) => {
             const vendorKey = (profile?.vendor_id || '').toString();
-            if (!vendorKey || acc[vendorKey]) return acc;
-            acc[vendorKey] = profile?.service_id?.toString?.() || profile?.service_id || null;
-            return acc;
-        }, {});
+            if (!vendorKey) return;
+            if (!eligibleVendorSet.has(vendorKey)) return;
+            if (seenVendors.has(vendorKey)) return;
+            seenVendors.add(vendorKey);
+            vendorProfiles.push(profile);
+        });
+
+        const topVendorProfiles = vendorProfiles.slice(0, 10);
 
         const mergedResults = [
             ...services.map((service) => ({
@@ -195,11 +211,11 @@ exports.search = async (req, res) => {
                 label: service.serviceName,
                 serviceType: service.serviceType
             })),
-            ...vendors.map((vendor) => ({
+            ...topVendorProfiles.map((profile) => ({
                 type: 'Vendor',
-                value: vendor._id,
-                label: vendor.name,
-                serviceId: vendorServiceMap[vendor._id.toString()] || null
+                value: profile.vendor_id,
+                label: profile.businessName || '',
+                serviceId: profile?.service_id?.toString?.() || profile?.service_id || null
             }))
         ];
 

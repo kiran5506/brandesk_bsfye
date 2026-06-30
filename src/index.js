@@ -24,6 +24,7 @@ const skillRouter = require('./routes/skillRouter');
 const tutorialRouter = require('./routes/tutorialRouter');
 const languageRouter = require('./routes/languageRouter');
 const testimonialRouter = require('./routes/testimonialRouter');
+const blogRouter = require('./routes/blogRouter');
 
 const vendorAuthRouter = require('./routes/vendorAuthRouter');
 const vendorRouter = require('./routes/vendorRouter');
@@ -109,6 +110,7 @@ app.use("/api/skill", skillRouter);
 app.use("/api/tutorial", tutorialRouter);
 app.use("/api/language", languageRouter);
 app.use("/api/testimonial", testimonialRouter);
+app.use("/api/blog", blogRouter);
 
 /** Vendor Module */
 app.use("/api/vendorauth", vendorAuthRouter);

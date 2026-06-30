@@ -2,6 +2,7 @@ const Vendor = require("../models/vendorModule");
 var jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sendEmail } = require('../utils/mail');
+const { buildNewsletterEmail } = require('../utils/emailTemplate');
 
 exports.login = async (req, res) => {
     const { email, password } = req.body;
@@ -54,8 +55,12 @@ exports.register = async (req, res) => {
         //send Mail to vendor with OTP for verification
         const to = email;
         const subject = 'OTP for Vendor Registration';
-        const text = 'This OTP is for vendor registration';
-        const html = `<p>This OTP is for vendor registration</p><h2>${otp}</h2>`;
+        const { text, html } = buildNewsletterEmail({
+            title: 'Verify Your Vendor Account',
+            greeting: `Hello ${name || 'Vendor'},`,
+            intro: 'Thanks for registering your vendor account with BSFYE.',
+            body: `Use this OTP to complete registration: ${otp}\n\nDo not share this OTP with anyone.`,
+        });
         const response = await sendEmail(to, subject, text, html);
 
         const newVendor = new Vendor({name, email, mobile_number, password: hashPassword, acceptTerms, otp_code: otp});
@@ -166,13 +171,20 @@ exports.generateOTP = async (req, res) => {
         const result = await vendor.save();
 
         const subject = otpPurpose === 'forgot' ? 'OTP for Password Reset' : 'OTP for Vendor Registration';
-        const text = otpPurpose === 'forgot'
-            ? 'This OTP is for your password reset request'
-            : 'This OTP is for vendor registration';
-        const html = otpPurpose === 'forgot'
-            ? `<p>This OTP is for your password reset request</p><h2>${otp}</h2>`
-            : `<p>This OTP is for vendor registration</p><h2>${otp}</h2>`;
-        await sendEmail(vendor.email, subject, text, html);
+        const emailContent = otpPurpose === 'forgot'
+            ? buildNewsletterEmail({
+                title: 'Password Reset OTP',
+                greeting: `Hello ${vendor.name || 'Vendor'},`,
+                intro: 'We received a request to reset your password.',
+                body: `Use this OTP to continue: ${otp}\n\nIf you did not request this, you can safely ignore this email.`,
+            })
+            : buildNewsletterEmail({
+                title: 'Verify Your Vendor Account',
+                greeting: `Hello ${vendor.name || 'Vendor'},`,
+                intro: 'Please verify your vendor account to continue.',
+                body: `Use this OTP for registration verification: ${otp}`,
+            });
+        await sendEmail(vendor.email, subject, emailContent.text, emailContent.html);
 
         console.log(`OTP generated for vendor ${vendor_id}: ${otp}`);
 
@@ -207,11 +219,18 @@ exports.forgotPassword = async (req, res) => {
         vendor.password_reset_verified = false;
         await vendor.save();
 
+        const resetEmail = buildNewsletterEmail({
+            title: 'Password Reset OTP',
+            greeting: `Hello ${vendor.name || 'Vendor'},`,
+            intro: 'We received a request to reset your password.',
+            body: `Use this OTP to continue: ${otp}\n\nIf you did not request this, you can safely ignore this email.`,
+        });
+
         await sendEmail(
             vendor.email,
             'OTP for Password Reset',
-            'This OTP is for your password reset request',
-            `<p>This OTP is for your password reset request</p><h2>${otp}</h2>`
+            resetEmail.text,
+            resetEmail.html
         );
 
         return res.status(200).json({

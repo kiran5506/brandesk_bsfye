@@ -2,6 +2,7 @@ const Customer = require("../models/customerModel");
 var jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sendEmail } = require("../utils/mail");
+const { buildNewsletterEmail } = require("../utils/emailTemplate");
 
 exports.login = async (req, res) => {
     const { email, password } = req.body;
@@ -88,8 +89,12 @@ exports.register = async (req, res) => {
          // TODO: Send OTP via email or SMS
         const to = email;
         const subject = 'OTP for Customer Registration';
-        const text = 'This OTP is for Customer registration';
-        const html = `<p>This OTP is for Customer registration</p><h2>${otp}</h2>`;
+        const { text, html } = buildNewsletterEmail({
+            title: 'Verify Your Account',
+            greeting: `Hello ${name || 'Customer'},`,
+            intro: 'Thanks for registering with BSFYE.',
+            body: `Use this OTP to complete your registration: ${otp}\n\nDo not share this OTP with anyone.`,
+        });
         const response = await sendEmail(to, subject, text, html);
 
         await result.save();
@@ -177,13 +182,20 @@ exports.resendOtp = async (req, res) => {
 
         const to = customer.email;
         const subject = otpPurpose === 'forgot' ? 'OTP for Password Reset' : 'OTP for Customer Registration';
-        const text = otpPurpose === 'forgot'
-            ? 'This OTP is for your password reset request.'
-            : 'This OTP is for customer registration verification.';
-        const html = otpPurpose === 'forgot'
-            ? `<p>This OTP is for your password reset request</p><h2>${otp}</h2>`
-            : `<p>This OTP is for Customer registration</p><h2>${otp}</h2>`;
-        await sendEmail(to, subject, text, html);
+        const emailContent = otpPurpose === 'forgot'
+            ? buildNewsletterEmail({
+                title: 'Password Reset OTP',
+                greeting: `Hello ${customer.name || 'Customer'},`,
+                intro: 'We received a request to reset your password.',
+                body: `Use this OTP to continue: ${otp}\n\nIf you did not request this, you can safely ignore this email.`,
+            })
+            : buildNewsletterEmail({
+                title: 'Verify Your Account',
+                greeting: `Hello ${customer.name || 'Customer'},`,
+                intro: 'Please verify your account to continue.',
+                body: `Use this OTP for registration verification: ${otp}`,
+            });
+        await sendEmail(to, subject, emailContent.text, emailContent.html);
         
         res.status(200).json({ 
             status: true, 
@@ -221,8 +233,12 @@ exports.forgotPassword = async (req, res) => {
 
         const to = email;
         const subject = 'OTP for Password Reset';
-        const text = 'This OTP is for your password reset request';
-        const html = `<p>This OTP is for your password reset request</p><h2>${otp}</h2>`;
+        const { text, html } = buildNewsletterEmail({
+            title: 'Password Reset OTP',
+            greeting: `Hello ${customer.name || 'Customer'},`,
+            intro: 'We received a request to reset your password.',
+            body: `Use this OTP to continue: ${otp}\n\nIf you did not request this, you can safely ignore this email.`,
+        });
         await sendEmail(to, subject, text, html);
         
         res.status(200).json({ 

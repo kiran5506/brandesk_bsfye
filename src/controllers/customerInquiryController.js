@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const { assignVendorsToInquiry } = require('../utils/leadAssignmentService');
 const { sendEmail } = require('../utils/mail');
+const { buildNewsletterEmail } = require('../utils/emailTemplate');
 
 /**
  * Create a new customer inquiry
@@ -168,16 +169,13 @@ exports.create = async (req, res) => {
 
     if (!shouldSkipOtp && otp && resolvedEmail) {
       const emailSubject = 'Your OTP Code - Brandesk';
-      const emailText = `Your OTP code is ${otp}. It is valid for a short time.`;
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-          <p>Hello ${resolvedName || 'Customer'},</p>
-          <p>Your OTP code is <strong>${otp}</strong>.</p>
-          <p>This code is valid for a short time. Please do not share it with anyone.</p>
-          <p>Thanks,<br/>Brandesk Team</p>
-        </div>
-      `;
-      await sendEmail(resolvedEmail, emailSubject, emailText, emailHtml);
+      const emailContent = buildNewsletterEmail({
+        title: 'Your OTP Code',
+        greeting: `Hello ${resolvedName || 'Customer'},`,
+        intro: 'Your verification OTP is ready.',
+        body: `Your OTP code is ${otp}.\n\nThis code is valid for a short time. Please do not share it with anyone.`,
+      });
+      await sendEmail(resolvedEmail, emailSubject, emailContent.text, emailContent.html);
     }
 
     await assignVendorsToInquiry(result, { limit: 5 });
