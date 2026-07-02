@@ -370,15 +370,6 @@ exports.findByIdWithProfiles = async (req, res) => {
             .populate('service_id', 'serviceName serviceType')
             .sort({ createdAt: -1 });
 
-        console.log('kiran businessProfiles-->', JSON.stringify(businessProfiles, null, 2));
-
-        // console.log(`\n=== INITIAL DB QUERY - ${profileType.toUpperCase()} ===`);
-        // console.log(`Total profiles from DB: ${businessProfiles.length}`);
-        // console.log(`First 3 profiles (DB order):`);
-        // businessProfiles.slice(0, 3).forEach((p, i) => {
-        //     console.log(`  [${i}] ID: ${p._id}, CreatedAt: ${p.createdAt}, Vendor: ${p.vendor_id?.name}`);
-        // });
-
         const cityIds = [...new Set(
             businessProfiles
                 .map((profile) => profile?.address?.city)

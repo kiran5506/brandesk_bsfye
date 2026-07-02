@@ -1,4 +1,5 @@
 const Feedback = require('../models/feedbackModel');
+const BusinessProfile = require('../models/businessProfileModel');
 
 /**
  * Create a new feedback request
@@ -105,7 +106,46 @@ exports.list = async (req, res) => {
       .populate('customer_id', 'name mobile_number email')
       .skip(skip)
       .limit(parseInt(limit))
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const vendorIds = feedbacks
+      .map((item) => item.vendor_id?._id)
+      .filter(Boolean);
+
+    let businessNameByVendorId = {};
+    if (vendorIds.length > 0) {
+      const businessProfiles = await BusinessProfile.find({
+        vendor_id: { $in: vendorIds },
+        isActive: true
+      })
+        .select('vendor_id businessName')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      businessNameByVendorId = businessProfiles.reduce((acc, profile) => {
+        const key = profile.vendor_id?.toString();
+        if (key && !acc[key]) {
+          acc[key] = profile.businessName;
+        }
+        return acc;
+      }, {});
+    }
+
+    const enrichedFeedbacks = feedbacks.map((item) => {
+      const vendorKey = item.vendor_id?._id?.toString();
+      const businessName = vendorKey ? businessNameByVendorId[vendorKey] : undefined;
+
+      if (!item.vendor_id) return item;
+
+      return {
+        ...item,
+        vendor_id: {
+          ...item.vendor_id,
+          businessName: businessName || null
+        }
+      };
+    });
 
     const total = await Feedback.countDocuments(filter);
 
@@ -119,7 +159,7 @@ exports.list = async (req, res) => {
     res.status(200).json({
       status: true,
       message: 'Feedback retrieved successfully',
-      data: feedbacks,
+      data: enrichedFeedbacks,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -153,7 +193,8 @@ exports.findById = async (req, res) => {
 
     const feedback = await Feedback.findById(id)
       .populate('vendor_id', 'name mobile_number email')
-      .populate('customer_id', 'name mobile_number email');
+      .populate('customer_id', 'name mobile_number email')
+      .lean();
 
     if (!feedback) {
       return res.status(404).json({
@@ -162,10 +203,31 @@ exports.findById = async (req, res) => {
       });
     }
 
+    let enrichedFeedback = feedback;
+    const vendorId = feedback.vendor_id?._id;
+
+    if (vendorId) {
+      const businessProfile = await BusinessProfile.findOne({
+        vendor_id: vendorId,
+        isActive: true
+      })
+        .select('businessName')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      enrichedFeedback = {
+        ...feedback,
+        vendor_id: {
+          ...feedback.vendor_id,
+          businessName: businessProfile?.businessName || null
+        }
+      };
+    }
+
     res.status(200).json({
       status: true,
       message: 'Feedback retrieved successfully',
-      data: feedback
+      data: enrichedFeedback
     });
   } catch (err) {
     res.status(500).json({

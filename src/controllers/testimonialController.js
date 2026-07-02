@@ -29,7 +29,7 @@ exports.create = async (req, res) => {
         const newTestimonial = new Testimonial({
             title,
             description,
-            rating: parseInt(rating),
+            rating: parseFloat(rating),
             image: image
         });
 
@@ -68,7 +68,7 @@ exports.edit = async (req, res) => {
             {
                 title: title || testimonial.title,
                 description: description || testimonial.description,
-                rating: rating ? parseInt(rating) : testimonial.rating,
+                rating: rating ? parseFloat(rating) : testimonial.rating,
                 image: image
             },
             { new: true, runValidators: true }

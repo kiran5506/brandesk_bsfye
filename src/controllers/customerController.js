@@ -5,7 +5,7 @@ exports.list = async (req, res) => {
     try {
         const customerList = await Customer.find(
             {}, 
-            '_id name mobile_number email type isActive'
+            '_id name mobile_number email'
         ).sort({ createdAt: -1 });
         
         res.status(200).json({

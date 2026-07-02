@@ -188,9 +188,13 @@ exports.listAdminLeads = async (req, res) => {
     }
 
     const inquiries = await CustomerInquiry.find(inquiryMatch)
+      .populate({
+        path: "city_id",
+        select: "cityName"
+      })
       .sort({ createdAt: -1 })
       .lean();
-
+      
     if (!inquiries.length) {
       return res.status(200).json({ status: true, message: 'No leads found', data: [] });
     }
@@ -228,9 +232,9 @@ exports.listAdminLeads = async (req, res) => {
       return {
         inquiry_id: inquiry._id,
         enquiry_date: inquiry.enquiry_date || inquiry.createdAt,
-        customer_name: customer.name || 'N/A',
-        customer_mobile: customer.mobile_number || 'N/A',
-        city_name: inquiry.city_name || 'N/A',
+        customer_name: customer.name || '-',
+        customer_mobile: customer.mobile_number || '-',
+        city_name: inquiry.city_id?.cityName || '-',
         vendors: assignmentInfo.vendorCount || 0
       };
     });
@@ -404,8 +408,11 @@ exports.getAdminLeadDetails = async (req, res) => {
     const { inquiryId } = req.params;
 
     const inquiry = await CustomerInquiry.findById(inquiryId)
-      .populate('service_id', 'serviceName')
+      .populate('service_id', 'serviceName').populate('city_id', 'cityName')
+      .select('enquiry_date city_id city_name customer_id service_id')
       .lean();
+
+    console.log('Inquiry:', JSON.stringify(inquiry, null, 2));
     if (!inquiry) {
       return res.status(404).json({ status: false, message: 'Lead not found' });
     }
@@ -415,7 +422,8 @@ exports.getAdminLeadDetails = async (req, res) => {
       .lean();
 
     const assignments = await LeadAssignment.find({ inquiry_id: inquiryId, isActive: true })
-      .populate('vendor_id', 'name mobile_number email')
+      .populate('vendor_id', 'name').populate('business_profile_id', 'businessName')
+      .select('vendor_id status assigned_at')
       .sort({ assigned_at: -1 })
       .lean();
 
